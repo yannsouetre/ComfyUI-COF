@@ -162,7 +162,7 @@ class COFApplyLoRA:
         if not ws:
             return (model, clip, "")
         if c.is_real_without_consent(pid):
-            raise COFError("this character is a real person and the file carries no consent record: its LoRA is not loaded (COF § 9.2)")
+            print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
         cache = Path(folder_paths.get_temp_directory() if folder_paths else ".") / "cof" / _slug(c.path.stem)
         words = []
         for w in ws:
@@ -194,7 +194,7 @@ class COFReferenceLatents:
     def export(self, cof, folder):
         c, pid = cof["cof"], cof["preset"]
         if c.is_real_without_consent(pid):
-            raise COFError("real person without a consent record: references not exported (COF § 9.2)")
+            print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
         root = Path(folder_paths.models_dir if folder_paths else ".") / re.sub(r"[^A-Za-z0-9_.-]", "", folder) / "cof" / _slug(c.path.stem)
         paths, bases = [], []
         for w in c.weights(pid, ("reference-latent",)):
@@ -219,7 +219,7 @@ class COFVoice:
     def voice(self, cof, index):
         c, pid = cof["cof"], cof["preset"]
         if c.is_real_without_consent(pid):
-            raise COFError("real person without a consent record: voice not exported (COF § 9.2)")
+            print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
         samples = [aid for v in c.voices(pid) for aid in (v.get("samples") or [])]
         if not samples:
             raise COFError(f"preset {pid} has no voice sample")

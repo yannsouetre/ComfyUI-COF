@@ -7,7 +7,8 @@ per-preset age (applied + offered, ages in years), primary image, facet navigati
 Safety (SPEC § 4.5, § 9.2, § 9.4) is enforced here, not in the UI:
   - intimate variants are never returned unless the caller asks for them explicitly AND the preset's
     effective `allowSexualUsage` is true AND the preset's age is known and >= 18;
-  - identity weights and voices of a real person (`fictional: false`) are refused without a consent record.
+  - using the identity weights or the voice of a real person (`fictional: false`) without a consent record is
+    warned (the author and the user are responsible, SPEC § 9.2); intimate content stays behind its hard rules.
 No file is executed; only JSON, images, audio and .safetensors are read or extracted.
 """
 from __future__ import annotations
@@ -202,6 +203,11 @@ class COF:
 
     def intimate_allowed(self, pid: str, requested: bool) -> bool:
         age = self.preset_age(pid)
+        I = self.identity(self.owner(pid))
+        if I.get("fictional") is False:                    # a real person: only with their explicit consent (scope intimate)
+            cons = I.get("consent") or (self.m.get("rights") or {}).get("consent") or {}
+            if "intimate" not in (cons.get("scope") or []):
+                return False
         return bool(requested and self.permissions(pid).get("allowSexualUsage") and age is not None and age >= ADULT)
 
     def is_real_without_consent(self, pid: str) -> bool:
@@ -312,7 +318,7 @@ class COF:
         I = self.identity(iid)
         age = self.preset_age(pid)
         perms = self.permissions(pid)
-        lines = [f"{I.get('name')} — preset {pid} ({self.presets[pid].get('label', '')})",
+        lines = [f"{I.get('name')} — preset {pid} ({self.presets[pid].get('label', '')})"] + (["WARNING: real person without a consent record — you are responsible for its use"] if self.is_real_without_consent(pid) else []) + [
                  f"age: {'unknown' if age is None else int(age)} · fictional: {I.get('fictional') is not False}",
                  "rights: " + ", ".join(f"{k}={perms[k]}" for k in ("commercialUsage", "allowRedistribution", "allowVoiceCloning", "allowTraining", "allowSexualUsage") if k in perms),
                  "presets of this character: " + ", ".join(self.presets_of(iid))]

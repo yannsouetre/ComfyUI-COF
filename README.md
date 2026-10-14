@@ -19,7 +19,7 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 ## The character's rules are enforced
 
 - **Intimate elements are never output** unless you switch `allow_intimate` on **and** the file's effective rights allow it for that preset **and** every element of the preset is 18 or over.
-- The **LoRA, references and voice of a real person** are refused when the file carries no consent record.
+- Using the **LoRA, references or voice of a real person** without a consent record in the file is **warned** (console and `info` output): you are responsible for that use.
 - Only images, audio and `.safetensors` are read or extracted; nothing in the file is executed. A `.safetensors` with a broken header is refused.
 - Read the **rights** in the `info` output, or open the file in the explorer: commercial use, redistribution, voice cloning and training are the author's call.
 
