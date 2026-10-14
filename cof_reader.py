@@ -90,7 +90,7 @@ class COF:
     def identity(self, iid) -> dict:
         I = self.identities().get(iid)
         if I:
-            if I.get("consent") is None and iid == self.default_identity():
+            if I.get("consent") is None and iid == self.default_identity() and len(self.identities()) == 1:
                 return dict(I, consent=(self.m.get("rights") or {}).get("consent"))   # root copy = default character only
             return I
         return {k: self.m.get(k) for k in ("name", "nickname", "summary", "fictional", "morphology")} | {"consent": (self.m.get("rights") or {}).get("consent")}
