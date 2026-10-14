@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+tests/out/
+refmods/
+cof/
+tests/samples/

@@ -1,0 +1,126 @@
+{
+  "1": {
+    "class_type": "COFLoadCharacter",
+    "inputs": {
+      "cof_file": "clara-mercier.cof",
+      "preset": "",
+      "character": "",
+      "max_size": 1024,
+      "allow_intimate": false
+    }
+  },
+  "2": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "YOUR_SDXL_OR_FLUX_CHECKPOINT.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "COFApplyLoRA",
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "clip": [
+        "2",
+        1
+      ],
+      "cof": [
+        "1",
+        0
+      ],
+      "strength": -1.0
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "3",
+        1
+      ],
+      "text": [
+        "1",
+        3
+      ]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "3",
+        1
+      ],
+      "text": "text, watermark, deformed hands"
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "3",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ],
+      "seed": 42,
+      "steps": 25,
+      "cfg": 6.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "2",
+        2
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "8",
+        0
+      ],
+      "filename_prefix": "cof"
+    }
+  },
+  "10": {
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "1",
+        2
+      ]
+    }
+  }
+}

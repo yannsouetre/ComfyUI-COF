@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-cof"
+description = "Load COF (Character Open File) characters in ComfyUI: primary image, reference views, prompt, embedded LoRA, pre-encoded references (RefMods) and voice — with the character's rights and age rules enforced."
+version = "0.1.0"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/yannsouetre/ComfyUI-COF"
+Documentation = "https://github.com/yannsouetre/cof"
+
+[tool.comfy]
+PublisherId = "yannsouetre"
+DisplayName = "ComfyUI-COF"
+Icon = ""
