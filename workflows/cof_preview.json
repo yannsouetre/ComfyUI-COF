@@ -1,0 +1,872 @@
+{
+ "last_node_id": 19,
+ "last_link_id": 18,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "COFLoadCharacter",
+   "pos": [
+    20,
+    20
+   ],
+   "size": [
+    360,
+    250
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "links": [
+      5,
+      7,
+      10,
+      12,
+      15,
+      17
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "primary_image",
+     "type": "IMAGE",
+     "links": [
+      1
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "references",
+     "type": "IMAGE",
+     "links": [
+      2
+     ],
+     "slot_index": 2
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "links": [
+      3
+     ],
+     "slot_index": 3
+    },
+    {
+     "name": "info",
+     "type": "STRING",
+     "links": [
+      4
+     ],
+     "slot_index": 4
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFLoadCharacter"
+   },
+   "widgets_values": [
+    "clara-mercier.cof",
+    "(default)",
+    "(default)",
+    1024,
+    false
+   ]
+  },
+  {
+   "id": 2,
+   "type": "PreviewImage",
+   "pos": [
+    400,
+    20
+   ],
+   "size": [
+    300,
+    440
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 1
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "title": "Primary image"
+  },
+  {
+   "id": 3,
+   "type": "PreviewImage",
+   "pos": [
+    720,
+    20
+   ],
+   "size": [
+    520,
+    440
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 2
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "title": "References (batch)"
+  },
+  {
+   "id": 4,
+   "type": "PreviewAny",
+   "pos": [
+    1260,
+    20
+   ],
+   "size": [
+    400,
+    210
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 3
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Prompt"
+  },
+  {
+   "id": 5,
+   "type": "PreviewAny",
+   "pos": [
+    1260,
+    250
+   ],
+   "size": [
+    400,
+    210
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 4
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Info and rights"
+  },
+  {
+   "id": 6,
+   "type": "COFImages",
+   "pos": [
+    20,
+    500
+   ],
+   "size": [
+    360,
+    230
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 5
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": [
+      6
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFImages"
+   },
+   "widgets_values": [
+    "clothing",
+    true,
+    "any",
+    "any",
+    -1
+   ],
+   "title": "COF Images: outfits"
+  },
+  {
+   "id": 7,
+   "type": "PreviewImage",
+   "pos": [
+    400,
+    500
+   ],
+   "size": [
+    400,
+    380
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 6
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "title": "Outfits"
+  },
+  {
+   "id": 9,
+   "type": "COFImages",
+   "pos": [
+    820,
+    500
+   ],
+   "size": [
+    360,
+    230
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 7
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": [
+      8
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [
+      9
+     ],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFImages"
+   },
+   "widgets_values": [
+    "environment",
+    false,
+    "any",
+    "any",
+    0
+   ],
+   "title": "COF Images: one place (index 0)"
+  },
+  {
+   "id": 10,
+   "type": "PreviewImage",
+   "pos": [
+    1200,
+    500
+   ],
+   "size": [
+    300,
+    260
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 8
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "title": "Place"
+  },
+  {
+   "id": 8,
+   "type": "PreviewAny",
+   "pos": [
+    1200,
+    780
+   ],
+   "size": [
+    300,
+    120
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 9
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Places: labels"
+  },
+  {
+   "id": 11,
+   "type": "COFImages",
+   "pos": [
+    20,
+    920
+   ],
+   "size": [
+    360,
+    230
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 10
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": [
+      11
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFImages"
+   },
+   "widgets_values": [
+    "posture",
+    false,
+    "any",
+    "any",
+    -1
+   ],
+   "title": "COF Images: poses"
+  },
+  {
+   "id": 12,
+   "type": "PreviewImage",
+   "pos": [
+    400,
+    920
+   ],
+   "size": [
+    400,
+    360
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 11
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "title": "Poses"
+  },
+  {
+   "id": 13,
+   "type": "COFVoice",
+   "pos": [
+    820,
+    920
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 12
+    }
+   ],
+   "outputs": [
+    {
+     "name": "audio",
+     "type": "AUDIO",
+     "links": [
+      13
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "transcript",
+     "type": "STRING",
+     "links": [
+      14
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFVoice"
+   },
+   "widgets_values": [
+    0
+   ]
+  },
+  {
+   "id": 14,
+   "type": "PreviewAudio",
+   "pos": [
+    1140,
+    920
+   ],
+   "size": [
+    360,
+    120
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "audio",
+     "type": "AUDIO",
+     "link": 13
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAudio"
+   },
+   "title": "Voice"
+  },
+  {
+   "id": 15,
+   "type": "PreviewAny",
+   "pos": [
+    1140,
+    1060
+   ],
+   "size": [
+    360,
+    140
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 14
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Voice: transcript"
+  },
+  {
+   "id": 16,
+   "type": "COFPersona",
+   "pos": [
+    20,
+    1320
+   ],
+   "size": [
+    300,
+    80
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 15
+    }
+   ],
+   "outputs": [
+    {
+     "name": "persona",
+     "type": "STRING",
+     "links": [
+      16
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "language",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 1
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFPersona"
+   }
+  },
+  {
+   "id": 17,
+   "type": "PreviewAny",
+   "pos": [
+    340,
+    1320
+   ],
+   "size": [
+    460,
+    300
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 16
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Persona text"
+  },
+  {
+   "id": 18,
+   "type": "COFMotion3D",
+   "pos": [
+    820,
+    1320
+   ],
+   "size": [
+    300,
+    110
+   ],
+   "flags": {},
+   "order": 17,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 17
+    }
+   ],
+   "outputs": [
+    {
+     "name": "paths",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 0
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [
+      18
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFMotion3D"
+   },
+   "widgets_values": [
+    "motion clips",
+    -1
+   ]
+  },
+  {
+   "id": 19,
+   "type": "PreviewAny",
+   "pos": [
+    1140,
+    1320
+   ],
+   "size": [
+    360,
+    220
+   ],
+   "flags": {},
+   "order": 18,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 18
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Motion clips: labels"
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   1,
+   2,
+   0,
+   "IMAGE"
+  ],
+  [
+   2,
+   1,
+   2,
+   3,
+   0,
+   "IMAGE"
+  ],
+  [
+   3,
+   1,
+   3,
+   4,
+   0,
+   "STRING"
+  ],
+  [
+   4,
+   1,
+   4,
+   5,
+   0,
+   "STRING"
+  ],
+  [
+   5,
+   1,
+   0,
+   6,
+   0,
+   "COF"
+  ],
+  [
+   6,
+   6,
+   0,
+   7,
+   0,
+   "IMAGE"
+  ],
+  [
+   7,
+   1,
+   0,
+   9,
+   0,
+   "COF"
+  ],
+  [
+   8,
+   9,
+   0,
+   10,
+   0,
+   "IMAGE"
+  ],
+  [
+   9,
+   9,
+   2,
+   8,
+   0,
+   "STRING"
+  ],
+  [
+   10,
+   1,
+   0,
+   11,
+   0,
+   "COF"
+  ],
+  [
+   11,
+   11,
+   0,
+   12,
+   0,
+   "IMAGE"
+  ],
+  [
+   12,
+   1,
+   0,
+   13,
+   0,
+   "COF"
+  ],
+  [
+   13,
+   13,
+   0,
+   14,
+   0,
+   "AUDIO"
+  ],
+  [
+   14,
+   13,
+   1,
+   15,
+   0,
+   "STRING"
+  ],
+  [
+   15,
+   1,
+   0,
+   16,
+   0,
+   "COF"
+  ],
+  [
+   16,
+   16,
+   0,
+   17,
+   0,
+   "STRING"
+  ],
+  [
+   17,
+   1,
+   0,
+   18,
+   0,
+   "COF"
+  ],
+  [
+   18,
+   18,
+   1,
+   19,
+   0,
+   "STRING"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.7,
+   "offset": [
+    40,
+    40
+   ]
+  }
+ },
+ "version": 0.4
+}

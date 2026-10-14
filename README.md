@@ -34,7 +34,7 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 1. Copy this folder into `ComfyUI/custom_nodes/ComfyUI-COF`, or `git clone https://github.com/yannsouetre/ComfyUI-COF` there. No extra Python package is needed.
 2. Put your `.cof` files in `ComfyUI/models/cof/` or `ComfyUI/input/cof/`. To try it, get `clara-mercier.cof` from the COF repository (`viewer/samples/`).
 3. Restart ComfyUI. The nodes are in the **COF** category.
-4. Drag `workflows/cof_preview_api.json` onto the canvas:
+4. Drag `workflows/cof_preview.json` onto the canvas (laid out: images at the top; `cof_preview_api.json` is the same workflow in API format):
    - it shows Clara's primary image, her references, her offered outfits, one environment, her poses, her voice, her personality text, her motion clips, the prompt and the info;
    - it needs no model.
 
