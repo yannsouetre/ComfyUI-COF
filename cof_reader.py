@@ -90,6 +90,8 @@ class COF:
     def identity(self, iid) -> dict:
         I = self.identities().get(iid)
         if I:
+            if I.get("consent") is None and iid == self.default_identity():
+                return dict(I, consent=(self.m.get("rights") or {}).get("consent"))   # root copy = default character only
             return I
         return {k: self.m.get(k) for k in ("name", "nickname", "summary", "fictional", "morphology")} | {"consent": (self.m.get("rights") or {}).get("consent")}
 
@@ -205,7 +207,7 @@ class COF:
         age = self.preset_age(pid)
         I = self.identity(self.owner(pid))
         if I.get("fictional") is False:                    # a real person: only with their explicit consent (scope intimate)
-            cons = I.get("consent") or (self.m.get("rights") or {}).get("consent") or {}
+            cons = I.get("consent") or {}
             if "intimate" not in (cons.get("scope") or []):
                 return False
         return bool(requested and self.permissions(pid).get("allowSexualUsage") and age is not None and age >= ADULT)
@@ -218,23 +220,33 @@ class COF:
             return False
         I = self.identity(self.owner(pid))
         if I.get("fictional") is False:
-            cons = I.get("consent") or (self.m.get("rights") or {}).get("consent") or {}
+            cons = I.get("consent") or {}
             return bool({"nudity", "intimate"} & set(cons.get("scope") or []))
         return True
 
     def is_real_without_consent(self, pid: str) -> bool:
         I = self.identity(self.owner(pid))
-        return I.get("fictional") is False and not (I.get("consent") or (self.m.get("rights") or {}).get("consent"))
+        return I.get("fictional") is False and not I.get("consent")
 
-    def primary_image(self, pid: str) -> str | None:
+    def nude_assets(self) -> set:
+        out = set()
+        for cat, e in (self.m.get("elements") or {}).items():
+            for vid in ((e or {}).get("variants") or {}):
+                v = self.variant(cat, vid) or {}
+                if v.get("nudity") is True or v.get("kind") == "intimate":
+                    out |= set(v.get("images") or []) | set(v.get("derived") or [])
+        return out
+
+    def primary_image(self, pid: str, allow_adult: bool = False) -> str | None:
+        nude = set() if allow_adult else self.nude_assets()
         e = self.inherited(pid, "primary_image")
-        if e in self.assets:
+        if e in self.assets and e not in nude:
             return e
         r = self.resolved(self.slots(pid))
         for k in REF_KINDS:
             for v in [x for x in r.get("appearance", []) if x.get("kind") == k]:
                 for i in v.get("images") or []:
-                    if str((self.assets.get(i) or {}).get("mediaType", "")).startswith("image/"):
+                    if i not in nude and str((self.assets.get(i) or {}).get("mediaType", "")).startswith("image/"):
                         return i
         return None
 

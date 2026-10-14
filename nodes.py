@@ -106,7 +106,7 @@ class COFLoadCharacter:
     def load(self, cof_file, preset, character, max_size, allow_intimate=False):
         cof = _open(cof_file)
         pid = cof.find_preset(preset.strip(), character.strip())
-        prim = cof.primary_image(pid)
+        prim = cof.primary_image(pid, allow_adult=cof.nudity_allowed(pid, allow_intimate))
         refs = cof.images(pid, kinds=set(REF_KINDS), allow_intimate=allow_intimate)
         sel = {"file": cof_file, "preset": pid, "allow_intimate": cof.intimate_allowed(pid, allow_intimate), "max_size": max_size}
         return ({"cof": cof, **sel}, _to_tensor(_images(cof, [prim] if prim else []), max_size),
