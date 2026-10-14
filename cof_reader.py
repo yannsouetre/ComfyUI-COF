@@ -39,9 +39,32 @@ def age_years(a) -> float | None:
     return a["value"] / 12 if u == "months" else float(a["value"])
 
 
+_FR = re.compile(r"[éèêàçùûôîœ]|\b(le|la|les|de|du|des|et|un|une|au|aux|ans|avec|sur)\b", re.I)
+EXTRACTABLE = (".safetensors", ".wav", ".mp3", ".ogg", ".opus", ".flac", ".m4a", ".png", ".jpg", ".jpeg", ".webp",
+               ".bvh", ".vrma", ".vrm", ".glb", ".gltf", ".obj", ".fbx", ".stl", ".3mf", ".ply", ".duf", ".mp4", ".webm")
+
+
 def english(label: str) -> str:
-    """Bilingual labels are written 'Français / English': keep the English half for prompts."""
-    return label.split(" / ", 1)[1].strip() if label and " / " in label else (label or "")
+    """Bilingual labels are written 'Français / English' or 'English / Français': keep the English half."""
+    if not label or " / " not in label:
+        return label or ""
+    parts = [x.strip() for x in label.split(" / ") if x.strip()]
+    return min(parts, key=lambda x: len(_FR.findall(x))) if parts else label
+
+
+def visual_summary(summary: str, name: str = "") -> str:
+    """The summary as a prompt fragment: English half, without the character's name and without age ranges
+    (the preset's own age is added separately)."""
+    t = english(summary or "").strip().rstrip(".")
+    keep = []
+    for c in re.split(r",\s*|;\s*", t):
+        c = c.strip()
+        if not c or (name and c.lower() == name.lower()):
+            continue
+        if re.search(r"\d", c) and re.search(r"\b(age|aged|ages|years?|ans|depicted|déclinée)\b", c, re.I):
+            continue
+        keep.append(c)
+    return ", ".join(keep)
 
 
 class COF:
@@ -287,8 +310,9 @@ class COF:
         I = self.identity(self.owner(pid))
         r = self.resolved(self.slots(pid))
         parts = [I.get("name") or self.m.get("name") or ""]
-        if I.get("summary") or self.m.get("summary"):
-            parts.append(english(I.get("summary") or self.m.get("summary")))
+        vs = visual_summary(I.get("summary") or self.m.get("summary") or "", parts[0])
+        if vs:
+            parts.append(vs)
         age = self.preset_age(pid)
         if age is not None:
             parts.append(f"{int(age)} years old")
@@ -326,8 +350,8 @@ class COF:
         if not a.get("path"):
             raise COFError(f"asset {aid} is a link ({a.get('uri', '?')}): download it yourself")
         rel = a["path"]
-        if not rel.lower().endswith((".safetensors", ".wav", ".mp3", ".ogg", ".opus", ".flac", ".m4a", ".png", ".jpg", ".jpeg", ".webp")):
-            raise COFError(f"refusing to extract {rel}: only weights, audio and images are extracted")
+        if not rel.lower().endswith(EXTRACTABLE):
+            raise COFError(f"refusing to extract {rel}: only weights, audio, images, motion clips and 3D files are extracted")
         dest_dir.mkdir(parents=True, exist_ok=True)
         out = dest_dir / Path(rel).name
         data = self.read(rel)
@@ -335,6 +359,62 @@ class COF:
             if len(data) < 8 or int.from_bytes(data[:8], "little") > len(data) - 8:
                 raise COFError(f"{rel}: invalid safetensors header")
         out.write_bytes(data)
+        return out
+
+    # ---------- choices, labels, text, motion and 3D ----------
+    def preset_choices(self) -> list[tuple[str, str, str]]:
+        """(preset id, label, character id) for every preset, in file order."""
+        return [(p, x.get("label") or p, self.owner(p) or "") for p, x in self.presets.items()]
+
+    def character_choices(self) -> list[tuple[str, str]]:
+        return [(i, x.get("name") or i) for i, x in self.identities().items()]
+
+    def image_label(self, aid: str) -> str:
+        if not hasattr(self, "_labels"):
+            self._labels = {}
+            for cat, e in (self.m.get("elements") or {}).items():
+                for vid, v in ((e or {}).get("variants") or {}).items():
+                    for a in (v.get("images") or []):
+                        self._labels.setdefault(a, f"{english(v.get('label') or vid)} ({v.get('kind', cat)})")
+        a = self.assets.get(aid) or {}
+        extra = " ".join(x for x in (a.get("subject"), a.get("angle")) if x) or Path(a.get("path", aid)).stem
+        return f"{self._labels.get(aid, aid)} · {extra}"
+
+    def persona(self, pid: str) -> tuple[str, str]:
+        """The preset's personality as plain text for a language model, and its language(s)."""
+        out, langs = [], []
+        for v in self.resolved(self.slots(pid)).get("personality", []):
+            if v.get("language"):
+                langs.append(v["language"])
+            if v.get("card"):
+                d = (self.json_at(v["card"]) or {}).get("data") or {}
+                for k, lead in (("description", ""), ("personality", "Personality: "), ("scenario", "Scenario: "), ("system_prompt", "")):
+                    if isinstance(d.get(k), str) and d[k].strip():
+                        out.append(lead + d[k].strip())
+            elif isinstance(v.get("text"), str) and v["text"].strip():
+                out.append(v["text"].strip())
+        return "\n\n".join(out), ", ".join(dict.fromkeys(langs))
+
+    def media(self, pid: str, cat: str) -> list[dict]:
+        """Motion clips (cat 'motion') or 3D files (cat 'volume3d') applied by the preset: [{label, asset or path}]."""
+        out = []
+        for v in self.resolved(self.slots(pid)).get(cat, []):
+            lab = english(v.get("label") or v["_id"])
+            for aid in (v.get("clips") or []) + (v.get("files") or []):
+                a = self.assets.get(aid) or {}
+                if a.get("path") and a["path"].lower().endswith(EXTRACTABLE):
+                    out.append({"label": f"{lab} · {Path(a['path']).stem}", "asset": aid})
+            rel = v.get("path") or (v.get("mesh") or {}).get("path")
+            if rel and rel.lower().endswith(EXTRACTABLE) and rel in self.zip.namelist():
+                out.append({"label": f"{lab} · {Path(rel).stem}", "path": rel})
+        return out
+
+    def extract_path(self, rel: str, dest_dir: Path) -> Path:
+        if not rel.lower().endswith(EXTRACTABLE):
+            raise COFError(f"refusing to extract {rel}")
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        out = dest_dir / Path(rel).name
+        out.write_bytes(self.read(rel))
         return out
 
     def voices(self, pid: str) -> list[dict]:

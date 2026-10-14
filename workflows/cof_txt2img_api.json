@@ -3,8 +3,8 @@
     "class_type": "COFLoadCharacter",
     "inputs": {
       "cof_file": "clara-mercier.cof",
-      "preset": "",
-      "character": "",
+      "preset": "(default)",
+      "character": "(default)",
       "max_size": 1024,
       "allow_intimate": false
     }

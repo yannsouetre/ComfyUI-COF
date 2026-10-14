@@ -16,7 +16,7 @@ try:                                   # inside ComfyUI
 except ImportError:                    # tests outside ComfyUI
     folder_paths = None
 
-from .cof_reader import COF, COFError, REF_KINDS
+from .cof_reader import COF, COFError, REF_KINDS, english
 
 KIND_CHOICES = ["references (face, reference set, sheet, body)", "all", "face", "body", "reference-set", "character-sheet",
                 "hair", "clothing", "accessory", "environment", "posture"]
@@ -35,6 +35,8 @@ def _register_folder():
 
 _register_folder()
 _CACHE: dict[str, tuple[float, COF]] = {}
+DEFAULT = "(default)"
+SEP = " — "
 
 
 def _open(name: str) -> COF:
@@ -48,6 +50,36 @@ def _open(name: str) -> COF:
     c = COF(path)
     _CACHE[path] = (mt, c)
     return c
+
+
+def _files() -> list[str]:
+    return folder_paths.get_filename_list("cof") if folder_paths else []
+
+
+def _choices() -> tuple[list[str], list[str]]:
+    """Every preset and character of every .cof file, as 'id — label'. The browser extension (web/cof.js)
+    narrows the lists to the selected file and character; ComfyUI validates against the full lists."""
+    presets, chars = [DEFAULT], [DEFAULT]
+    for f in _files():
+        try:
+            c = _open(f)
+        except Exception:
+            continue
+        for pid, label, _ in c.preset_choices():
+            v = f"{pid}{SEP}{label}"
+            if v not in presets:
+                presets.append(v)
+        for iid, name in c.character_choices():
+            v = f"{iid}{SEP}{name}"
+            if v not in chars:
+                chars.append(v)
+    return presets, chars
+
+
+def _pick(v: str) -> str:
+    """'(default)' → '', 'id — label' → 'id'; free text (API workflows) is kept as is."""
+    v = (v or "").strip()
+    return "" if v in ("", DEFAULT) else v.split(SEP, 1)[0].strip()
 
 
 def _to_tensor(images: list[Image.Image], max_size: int):
@@ -87,25 +119,34 @@ class COFLoadCharacter:
 
     @classmethod
     def INPUT_TYPES(cls):
-        files = folder_paths.get_filename_list("cof") if folder_paths else []
+        files = _files()
+        presets, chars = _choices()
         return {"required": {
             "cof_file": (files or ["(put .cof files in models/cof or input/cof)"],),
-            "preset": ("STRING", {"default": "", "tooltip": "preset id or label; empty = the character's default preset"}),
-            "character": ("STRING", {"default": "", "tooltip": "for a file with several characters: id or name; empty = default character"}),
+            "preset": (presets, {"default": DEFAULT, "tooltip": "the presets of the selected file and character; (default) = the character's default preset"}),
+            "character": (chars, {"default": DEFAULT, "tooltip": "for a file with several characters; (default) = the file's default character"}),
             "max_size": ("INT", {"default": 1024, "min": 64, "max": 4096, "step": 64}),
         }, "optional": {
             "allow_intimate": ("BOOLEAN", {"default": False, "tooltip": "adult content: variants marked nudity (preset 18+, consent for a real person) and intimate ones (also needs the preset's effective allowSexualUsage)"}),
         }}
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset, character):
+        return True                      # older workflows may give a preset id or label as free text
+
     RETURN_TYPES = ("COF", "IMAGE", "IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("cof", "primary_image", "references", "prompt", "info")
+    OUTPUT_TOOLTIPS = ("the loaded character, for the advanced COF nodes",
+                       "one image: the preset's main image",
+                       "a batch of every reference view (face, reference set, character sheet, body) — for nodes that take several reference images; pick one with COF Images (index)",
+                       "a ready text prompt for this preset", "rights, age and the presets of this character")
     FUNCTION = "load"
     CATEGORY = "COF"
     DESCRIPTION = "Loads a character from a COF (Character Open File): primary image, reference views and a ready prompt for the chosen preset."
 
     def load(self, cof_file, preset, character, max_size, allow_intimate=False):
         cof = _open(cof_file)
-        pid = cof.find_preset(preset.strip(), character.strip())
+        pid = cof.find_preset(_pick(preset), _pick(character))
         prim = cof.primary_image(pid, allow_adult=cof.nudity_allowed(pid, allow_intimate))
         refs = cof.images(pid, kinds=set(REF_KINDS), allow_intimate=allow_intimate)
         sel = {"file": cof_file, "preset": pid, "allow_intimate": cof.intimate_allowed(pid, allow_intimate), "max_size": max_size}
@@ -114,7 +155,7 @@ class COFLoadCharacter:
 
 
 class COFImages:
-    """Advanced: pick images of the preset by kind, subject and angle, applied or also offered."""
+    """Advanced: pick images of the preset by kind, subject and angle, applied or also offered; index picks one."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -124,19 +165,24 @@ class COFImages:
             "include_offered": ("BOOLEAN", {"default": False, "tooltip": "also the outfits, accessories… offered with this preset"}),
             "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
             "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
+        }, "optional": {
+            "index": ("INT", {"default": -1, "min": -1, "max": 256, "tooltip": "-1 = every matching image (a batch); 0, 1, 2… = only that one (see the labels output)"}),
         }}
 
-    RETURN_TYPES = ("IMAGE", "INT")
-    RETURN_NAMES = ("images", "count")
+    RETURN_TYPES = ("IMAGE", "INT", "STRING")
+    RETURN_NAMES = ("images", "count", "labels")
+    OUTPUT_TOOLTIPS = ("the matching images (or the one chosen by index)", "how many images match", "one line per matching image: index, element, view")
     FUNCTION = "pick"
     CATEGORY = "COF"
 
-    def pick(self, cof, kind, include_offered, subject, angle):
+    def pick(self, cof, kind, include_offered, subject, angle, index=-1):
         c, pid = cof["cof"], cof["preset"]
         kinds = None if kind == "all" else set(REF_KINDS) if kind.startswith("references") else {kind}
         aids = c.images(pid, kinds=kinds, include_offered=include_offered, allow_intimate=cof["allow_intimate"],
                         subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
-        return (_to_tensor(_images(c, aids), cof["max_size"]), len(aids))
+        labels = "\n".join(f"{i}: {c.image_label(a)}" for i, a in enumerate(aids))
+        chosen = aids if index < 0 or not aids else [aids[min(index, len(aids) - 1)]]
+        return (_to_tensor(_images(c, chosen), cof["max_size"]), len(aids), labels)
 
 
 class COFApplyLoRA:
@@ -204,15 +250,41 @@ class COFReferenceLatents:
         return ("\n".join(paths), "\n".join(bases))
 
 
+def _load_audio(path: str):
+    """(waveform [channels, samples], sample_rate) with whatever ComfyUI offers: its own loader, torchaudio, or PyAV."""
+    try:
+        from comfy_extras.nodes_audio import load as comfy_load
+        return comfy_load(path)
+    except Exception:
+        pass
+    try:
+        import torchaudio
+        return torchaudio.load(path)
+    except Exception:
+        pass
+    import av
+    import torch
+    with av.open(path) as f:
+        st = f.streams.audio[0]; sr = st.rate; chunks = []
+        for fr in f.decode(st):
+            a = fr.to_ndarray().astype(np.float32)
+            if fr.format.is_packed:
+                a = a.reshape(-1, len(fr.layout.channels)).T
+            if np.issubdtype(fr.to_ndarray().dtype, np.integer):
+                a = a / float(np.iinfo(fr.to_ndarray().dtype).max)
+            chunks.append(a)
+    return torch.from_numpy(np.concatenate(chunks, axis=1)), sr
+
+
 class COFVoice:
-    """Advanced: a voice sample of the preset as AUDIO (for voice-cloning or lip-sync nodes)."""
+    """Advanced: a voice sample of the preset as AUDIO (for voice-cloning, text-to-speech or lip-sync nodes)."""
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"cof": ("COF",), "index": ("INT", {"default": 0, "min": 0, "max": 64})}}
+        return {"required": {"cof": ("COF",), "index": ("INT", {"default": 0, "min": 0, "max": 64, "tooltip": "which sample (see the labels output)"})}}
 
-    RETURN_TYPES = ("AUDIO", "STRING")
-    RETURN_NAMES = ("audio", "transcript")
+    RETURN_TYPES = ("AUDIO", "STRING", "STRING")
+    RETURN_NAMES = ("audio", "transcript", "labels")
     FUNCTION = "voice"
     CATEGORY = "COF"
 
@@ -220,14 +292,14 @@ class COFVoice:
         c, pid = cof["cof"], cof["preset"]
         if c.is_real_without_consent(pid):
             print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
-        samples = [aid for v in c.voices(pid) for aid in (v.get("samples") or [])]
+        samples = [(aid, v) for v in c.voices(pid) for aid in (v.get("samples") or [])]
         if not samples:
             raise COFError(f"preset {pid} has no voice sample")
-        aid = samples[min(index, len(samples) - 1)]
+        labels = "\n".join(f"{i}: {english(v.get('label') or v['_id'])} [{v.get('language', '?')}]" for i, (_, v) in enumerate(samples))
+        aid = samples[min(index, len(samples) - 1)][0]
         tmp = Path(folder_paths.get_temp_directory() if folder_paths else ".") / "cof" / _slug(c.path.stem)
         f = c.extract(aid, tmp)
-        from comfy_extras.nodes_audio import load as load_audio
-        wave, sr = load_audio(str(f))
+        wave, sr = _load_audio(str(f))
         tr = ""
         t = (c.assets.get(aid) or {}).get("transcript")
         if t:
@@ -235,11 +307,82 @@ class COFVoice:
                 tr = c.read(t).decode("utf-8")
             except Exception:
                 tr = ""
-        return ({"waveform": wave.unsqueeze(0), "sample_rate": sr}, tr)
+        return ({"waveform": wave.unsqueeze(0), "sample_rate": sr}, tr, labels)
+
+
+class COFPersona:
+    """Advanced: the preset's personality as plain text (for a language-model node: system prompt, persona)."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",)}}
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("persona", "language")
+    FUNCTION = "text"
+    CATEGORY = "COF"
+
+    def text(self, cof):
+        return cof["cof"].persona(cof["preset"])
+
+
+class COFMotion3D:
+    """Advanced: exports the preset's motion clips (BVH…) or 3D files (VRM, GLB, OBJ…) to ComfyUI's input folder
+    and returns their paths, for 3D or animation nodes (3D files go to input/3d, where Load 3D finds them)."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",), "what": (["motion clips", "3D files"],),
+                             "index": ("INT", {"default": -1, "min": -1, "max": 256, "tooltip": "-1 = all; 0, 1, 2… = only that one (see labels)"})}}
+
+    RETURN_TYPES = ("STRING", "STRING", "INT")
+    RETURN_NAMES = ("paths", "labels", "count")
+    FUNCTION = "export"
+    CATEGORY = "COF"
+
+    def export(self, cof, what, index):
+        c, pid = cof["cof"], cof["preset"]
+        items = c.media(pid, "motion" if what.startswith("motion") else "volume3d")
+        labels = "\n".join(f"{i}: {x['label']}" for i, x in enumerate(items))
+        chosen = items if index < 0 or not items else [items[min(index, len(items) - 1)]]
+        base = Path(folder_paths.get_input_directory() if folder_paths else ".")
+        dest = base / ("3d" if what.startswith("3D") else "cof") / f"cof-{_slug(c.path.stem)}"
+        paths = [str(c.extract(x["asset"], dest) if x.get("asset") else c.extract_path(x["path"], dest)) for x in chosen]
+        return ("\n".join(paths), labels, len(items))
 
 
 NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFImages": COFImages, "COFApplyLoRA": COFApplyLoRA,
-                       "COFReferenceLatents": COFReferenceLatents, "COFVoice": COFVoice}
+                       "COFReferenceLatents": COFReferenceLatents, "COFVoice": COFVoice, "COFPersona": COFPersona,
+                       "COFMotion3D": COFMotion3D}
 NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": "COF Load Character", "COFImages": "COF Images (advanced)",
                               "COFApplyLoRA": "COF Apply LoRA (advanced)", "COFReferenceLatents": "COF Reference Latents / RefMods (advanced)",
-                              "COFVoice": "COF Voice (advanced)"}
+                              "COFVoice": "COF Voice (advanced)", "COFPersona": "COF Persona Text (advanced)",
+                              "COFMotion3D": "COF Motion & 3D Files (advanced)"}
+
+
+def _routes():
+    """GET /cof/info?file=<name>: presets and characters of one .cof, for the dropdowns of web/cof.js."""
+    try:
+        from aiohttp import web
+        from server import PromptServer
+    except Exception:
+        return
+
+    @PromptServer.instance.routes.get("/cof/info")
+    async def cof_info(request):
+        name = request.query.get("file", "")
+        if name not in _files():                     # only files ComfyUI lists — no arbitrary paths
+            return web.json_response({"error": "unknown file"}, status=404)
+        try:
+            c = _open(name)
+        except Exception as ex:
+            return web.json_response({"error": str(ex)}, status=400)
+        return web.json_response({
+            "presets": [{"value": f"{p}{SEP}{lab}", "character": f"{i}{SEP}{(c.identities().get(i) or {}).get('name') or i}" if c.identities() else ""}
+                        for p, lab, i in c.preset_choices()],
+            "characters": [f"{i}{SEP}{n}" for i, n in c.character_choices()],
+            "default_character": next((f"{i}{SEP}{n}" for i, n in c.character_choices() if i == c.default_identity()), ""),
+        })
+
+
+_routes()

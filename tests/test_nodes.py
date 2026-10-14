@@ -31,7 +31,7 @@ def test_load_clara_default_and_facets(pack):
     assert cof["preset"] == "default" and "rights:" in info
     c2 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "Clara at 65 (EN)", "", 256)
     assert c2[0]["preset"] == "en-65" and "65 years old" in c2[3]
-    imgs, n = nodes.COFImages().pick(c2[0], "clothing", True, "any", "any")
+    imgs, n, _ = nodes.COFImages().pick(c2[0], "clothing", True, "any", "any")
     assert n >= 1 and imgs.shape[0] == n
 
 
@@ -68,3 +68,32 @@ def test_nudity_needs_opt_in(pack):
     on = c.images("default", kinds={"body"}, allow_intimate=True); off = c.images("default", kinds={"body"})
     assert on and not off
     assert not c.nudity_allowed("young", True)
+
+
+def test_dropdown_values_and_index(pack):
+    nodes, _ = pack
+    assert nodes._pick("(default)") == "" and nodes._pick("en-65 — Clara at 65 (EN)") == "en-65" and nodes._pick("en-65") == "en-65"
+    assert nodes._choices() == (["(default)"], ["(default)"])               # no ComfyUI folders in tests
+    c = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "en-65 — Clara at 65 (EN)", "(default)", 256)
+    assert c[0]["preset"] == "en-65"
+    d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "(default)", "(default)", 256)[0]
+    allimg, n, labels = nodes.COFImages().pick(d, "environment", False, "any", "any")
+    assert n == 2 and allimg.shape[0] == 2 and labels.splitlines()[1].startswith("1: ") and "mobile" in labels
+    one, n2, _ = nodes.COFImages().pick(d, "environment", False, "any", "any", 1)
+    assert n2 == 2 and one.shape[0] == 1
+
+
+def test_persona_motion_voice(pack, tmp_path, monkeypatch):
+    nodes, _ = pack
+    d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "", "", 256)[0]
+    text, lang = nodes.COFPersona().text(d)
+    assert "Clara" in text and lang == "en"
+    monkeypatch.chdir(tmp_path)
+    paths, labels, n = nodes.COFMotion3D().export(d, "motion clips", 0)
+    assert n >= 1 and paths.endswith(".bvh") and Path(paths).is_file() and labels.startswith("0: ")
+
+    class W:
+        def unsqueeze(self, i): return "batched"
+    monkeypatch.setattr(nodes, "_load_audio", lambda p: (W(), 44100))
+    audio, transcript, vlabels = nodes.COFVoice().voice(d, 0)
+    assert audio == {"waveform": "batched", "sample_rate": 44100} and vlabels.startswith("0: ")

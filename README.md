@@ -8,13 +8,19 @@ Format and tools: <https://github.com/yannsouetre/cof> · explorer: <https://yan
 
 | Node | Inputs | Outputs |
 |---|---|---|
-| **COF Load Character** (simple — enough for most workflows) | `.cof` file, preset (id or label, empty = default), character (for a cast), max size | `cof`, primary image, reference images (face, reference set, character sheet, body), prompt, info |
-| COF Images (advanced) | `cof`, kind (clothing, accessory, environment, posture…), include offered, subject, angle | images, count |
+| **COF Load Character** (simple — enough for most workflows) | `.cof` file, **preset** and **character** dropdowns (filled from the selected file), max size | `cof`, primary image, reference images, prompt, info |
+| COF Images (advanced) | `cof`, kind (clothing, accessory, environment, posture…), include offered, subject, angle, **index** | images, count, labels |
+| COF Voice (advanced) | `cof`, sample index | audio, transcript, labels |
+| COF Persona Text (advanced) | `cof` | the preset's personality as text (for a language-model node), language |
+| COF Motion & 3D Files (advanced) | `cof`, motion clips or 3D files, index | paths of the exported files, labels, count |
 | COF Apply LoRA (advanced) | model, clip, `cof`, strength (-1 = the weight recommended in the file) | model, clip, trigger words |
 | COF Reference Latents / RefMods (advanced) | `cof`, models subfolder (default `refmods`) | paths of the exported `.safetensors`, base models |
-| COF Voice (advanced) | `cof`, sample index | audio, transcript |
 
-The **prompt** combines the trigger words of the preset's LoRA, the character's name and summary, the preset's age, the outfit, accessories and place applied by the preset, and its visual style.
+- **Presets**: the dropdown lists the presets of the selected file — and, in a file with several characters, those of the selected character. `(default)` is the character's default preset. After adding a `.cof` file, press **R** (refresh) in ComfyUI.
+- **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To use a single image, take **COF Images** and set **index** (0, 1, 2…): its `labels` output says which image is which — for example the two framings of an environment, desktop and mobile.
+- **Motion clips** (BVH) are exported to `input/cof/`, **3D files** (VRM, GLB, OBJ…) to `input/3d/`, where the **Load 3D** node lists them.
+
+The **prompt** combines the trigger words of the preset's LoRA, the character's name and visual summary, the preset's age, the outfit, accessories and place applied by the preset, and its visual style.
 
 ## The character's rules are enforced
 
@@ -29,7 +35,7 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 2. Put your `.cof` files in `ComfyUI/models/cof/` or `ComfyUI/input/cof/`. To try it, get `clara-mercier.cof` from the COF repository (`viewer/samples/`).
 3. Restart ComfyUI. The nodes are in the **COF** category.
 4. Drag `workflows/cof_preview_api.json` onto the canvas:
-   - it shows Clara's primary image, her references, her offered outfits, the prompt and the info;
+   - it shows Clara's primary image, her references, her offered outfits, one environment, her poses, her voice, her personality text, her motion clips, the prompt and the info;
    - it needs no model.
 
    `workflows/cof_txt2img_api.json` adds a checkpoint, the file's LoRA (if any) and a sampler; choose your checkpoint first.
@@ -42,7 +48,7 @@ cd tests && python -m pytest test_nodes.py --import-mode=importlib -c /dev/null
 
 The tests stub `torch` and `comfy`. They need four sample files in `tests/samples/`:
 - `clara-mercier.cof` and `clara-martien.cof`, from `viewer/samples/` of the COF repository;
-- `mixed-adult-minor.cof`, which is example 09 packed;
+- `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
 - `refmod.cof`, a test file with a pre-encoded reference.
 
 ## Licence

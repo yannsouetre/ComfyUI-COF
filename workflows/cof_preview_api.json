@@ -3,8 +3,8 @@
     "class_type": "COFLoadCharacter",
     "inputs": {
       "cof_file": "clara-mercier.cof",
-      "preset": "",
-      "character": "",
+      "preset": "(default)",
+      "character": "(default)",
       "max_size": 1024,
       "allow_intimate": false
     }
@@ -55,7 +55,8 @@
       "kind": "clothing",
       "include_offered": true,
       "subject": "any",
-      "angle": "any"
+      "angle": "any",
+      "index": -1
     }
   },
   "7": {
@@ -64,6 +65,145 @@
       "images": [
         "6",
         0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Outfits: labels"
+    },
+    "inputs": {
+      "source": [
+        "6",
+        2
+      ]
+    }
+  },
+  "9": {
+    "class_type": "COFImages",
+    "_meta": {
+      "title": "COF Images: one environment"
+    },
+    "inputs": {
+      "cof": [
+        "1",
+        0
+      ],
+      "kind": "environment",
+      "include_offered": false,
+      "subject": "any",
+      "angle": "any",
+      "index": 0
+    }
+  },
+  "10": {
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "9",
+        0
+      ]
+    }
+  },
+  "11": {
+    "class_type": "COFImages",
+    "_meta": {
+      "title": "COF Images: poses"
+    },
+    "inputs": {
+      "cof": [
+        "1",
+        0
+      ],
+      "kind": "posture",
+      "include_offered": false,
+      "subject": "any",
+      "angle": "any",
+      "index": -1
+    }
+  },
+  "12": {
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "11",
+        0
+      ]
+    }
+  },
+  "13": {
+    "class_type": "COFVoice",
+    "inputs": {
+      "cof": [
+        "1",
+        0
+      ],
+      "index": 0
+    }
+  },
+  "14": {
+    "class_type": "PreviewAudio",
+    "inputs": {
+      "audio": [
+        "13",
+        0
+      ]
+    }
+  },
+  "15": {
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Voice: transcript"
+    },
+    "inputs": {
+      "source": [
+        "13",
+        1
+      ]
+    }
+  },
+  "16": {
+    "class_type": "COFPersona",
+    "inputs": {
+      "cof": [
+        "1",
+        0
+      ]
+    }
+  },
+  "17": {
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Persona text"
+    },
+    "inputs": {
+      "source": [
+        "16",
+        0
+      ]
+    }
+  },
+  "18": {
+    "class_type": "COFMotion3D",
+    "inputs": {
+      "cof": [
+        "1",
+        0
+      ],
+      "what": "motion clips",
+      "index": -1
+    }
+  },
+  "19": {
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Motion clips: labels"
+    },
+    "inputs": {
+      "source": [
+        "18",
+        1
       ]
     }
   }
