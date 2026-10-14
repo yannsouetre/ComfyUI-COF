@@ -59,3 +59,12 @@ def test_intimate_never_without_rights(pack):
     imgs = c.images("default", kinds=None, allow_intimate=False)
     assert all(not a.startswith("a-i1") for a in imgs)
     assert any(a == "a-i1-placeholder" for a in c.images("default", kinds=None, allow_intimate=True))
+
+
+def test_nudity_needs_opt_in(pack):
+    from comfyui_cof.cof_reader import COF
+    c = COF(SAMPLES / "mixed-adult-minor.cof")
+    c.m["elements"]["appearance"]["variants"]["b1"]["nudity"] = True
+    on = c.images("default", kinds={"body"}, allow_intimate=True); off = c.images("default", kinds={"body"})
+    assert on and not off
+    assert not c.nudity_allowed("young", True)

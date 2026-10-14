@@ -94,7 +94,7 @@ class COFLoadCharacter:
             "character": ("STRING", {"default": "", "tooltip": "for a file with several characters: id or name; empty = default character"}),
             "max_size": ("INT", {"default": 1024, "min": 64, "max": 4096, "step": 64}),
         }, "optional": {
-            "allow_intimate": ("BOOLEAN", {"default": False, "tooltip": "only honoured when the preset's effective rights allow it and every element of the preset is 18 or over"}),
+            "allow_intimate": ("BOOLEAN", {"default": False, "tooltip": "adult content: variants marked nudity (preset 18+, consent for a real person) and intimate ones (also needs the preset's effective allowSexualUsage)"}),
         }}
 
     RETURN_TYPES = ("COF", "IMAGE", "IMAGE", "STRING", "STRING")

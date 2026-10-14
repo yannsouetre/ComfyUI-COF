@@ -210,6 +210,18 @@ class COF:
                 return False
         return bool(requested and self.permissions(pid).get("allowSexualUsage") and age is not None and age >= ADULT)
 
+    def nudity_allowed(self, pid: str, requested: bool) -> bool:
+        """Nudity without genitals (variants marked `nudity`): only on request, in a preset of 18 or over, and for a
+        real person only with consent scope nudity or intimate."""
+        age = self.preset_age(pid)
+        if not (requested and age is not None and age >= ADULT):
+            return False
+        I = self.identity(self.owner(pid))
+        if I.get("fictional") is False:
+            cons = I.get("consent") or (self.m.get("rights") or {}).get("consent") or {}
+            return bool({"nudity", "intimate"} & set(cons.get("scope") or []))
+        return True
+
     def is_real_without_consent(self, pid: str) -> bool:
         I = self.identity(self.owner(pid))
         return I.get("fictional") is False and not (I.get("consent") or (self.m.get("rights") or {}).get("consent"))
@@ -230,12 +242,15 @@ class COF:
     def images(self, pid: str, kinds=None, include_offered=False, allow_intimate=False, subject="", angle="") -> list[str]:
         lists = [self.slots(pid)] + ([self.offered(pid)] if include_offered else [])
         ok_intimate = self.intimate_allowed(pid, allow_intimate)
+        ok_nudity = self.nudity_allowed(pid, allow_intimate)
         out = []
         for lst in lists:
             for cat, vs in self.resolved(lst).items():
                 for v in vs:
                     k = v.get("kind")
                     if k == "intimate" and not ok_intimate:
+                        continue
+                    if v.get("nudity") is True and not ok_nudity:
                         continue
                     if kinds and k not in kinds and cat not in kinds:
                         continue
