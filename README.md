@@ -41,7 +41,7 @@ cd tests && python -m pytest test_nodes.py --import-mode=importlib -c /dev/null
 ```
 
 The tests stub `torch` and `comfy`. They need four sample files in `tests/samples/`:
-- `clara-mercier.cof` and `lea-martien.cof`, from `viewer/samples/` of the COF repository;
+- `clara-mercier.cof` and `clara-martien.cof`, from `viewer/samples/` of the COF repository;
 - `mixed-adult-minor.cof`, which is example 09 packed;
 - `refmod.cof`, a test file with a pre-encoded reference.
 

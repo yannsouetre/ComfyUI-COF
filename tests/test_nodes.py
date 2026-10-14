@@ -37,7 +37,7 @@ def test_load_clara_default_and_facets(pack):
 
 def test_cast_and_unknowns(pack):
     nodes, _ = pack
-    out = nodes.COFLoadCharacter().load(str(SAMPLES / "lea-martien.cof"), "", "Martien", 256)
+    out = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-martien.cof"), "", "Martien", 256)
     assert "Martien" in out[4].splitlines()[0]
     with pytest.raises(Exception, match="unknown preset"):
         nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "nope", "", 256)
