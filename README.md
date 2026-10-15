@@ -59,6 +59,12 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 - `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
 - `refmod.cof`, a test file with a pre-encoded reference.
 
+## Changes
+
+- **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
+- **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
+- **0.1.0** — first version.
+
 ## Licence
 
 MIT — Yann Souetre.
