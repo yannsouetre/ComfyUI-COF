@@ -6,11 +6,11 @@
    "id": 1,
    "type": "COFLoadCharacter",
    "pos": [
-    20,
-    20
+    0,
+    0
    ],
    "size": [
-    360,
+    380,
     250
    ],
    "flags": {},
@@ -79,8 +79,8 @@
    "id": 2,
    "type": "PreviewImage",
    "pos": [
-    400,
-    20
+    560,
+    0
    ],
    "size": [
     300,
@@ -106,8 +106,8 @@
    "id": 3,
    "type": "PreviewImage",
    "pos": [
-    720,
-    20
+    900,
+    0
    ],
    "size": [
     520,
@@ -133,11 +133,11 @@
    "id": 4,
    "type": "PreviewAny",
    "pos": [
-    1260,
-    20
+    1800,
+    0
    ],
    "size": [
-    400,
+    420,
     210
    ],
    "flags": {},
@@ -160,11 +160,11 @@
    "id": 5,
    "type": "PreviewAny",
    "pos": [
-    1260,
-    250
+    1800,
+    240
    ],
    "size": [
-    400,
+    420,
     210
    ],
    "flags": {},
@@ -187,12 +187,12 @@
    "id": 6,
    "type": "COFImages",
    "pos": [
-    20,
-    500
+    0,
+    540
    ],
    "size": [
-    360,
-    230
+    380,
+    250
    ],
    "flags": {},
    "order": 5,
@@ -234,7 +234,7 @@
     true,
     "any",
     "any",
-    -1
+    "mosaic_all"
    ],
    "title": "COF Images: outfits"
   },
@@ -242,11 +242,11 @@
    "id": 7,
    "type": "PreviewImage",
    "pos": [
-    400,
-    500
+    560,
+    540
    ],
    "size": [
-    400,
+    440,
     380
    ],
    "flags": {},
@@ -269,12 +269,12 @@
    "id": 9,
    "type": "COFImages",
    "pos": [
-    820,
-    500
+    1240,
+    540
    ],
    "size": [
-    360,
-    230
+    380,
+    250
    ],
    "flags": {},
    "order": 7,
@@ -318,19 +318,19 @@
     false,
     "any",
     "any",
-    0
+    "image_001"
    ],
-   "title": "COF Images: one place (index 0)"
+   "title": "COF Images: one place"
   },
   {
    "id": 10,
    "type": "PreviewImage",
    "pos": [
-    1200,
-    500
+    1800,
+    540
    ],
    "size": [
-    300,
+    320,
     260
    ],
    "flags": {},
@@ -353,12 +353,12 @@
    "id": 8,
    "type": "PreviewAny",
    "pos": [
-    1200,
-    780
+    1800,
+    830
    ],
    "size": [
-    300,
-    120
+    420,
+    130
    ],
    "flags": {},
    "order": 9,
@@ -380,12 +380,12 @@
    "id": 11,
    "type": "COFImages",
    "pos": [
-    20,
-    920
+    0,
+    1020
    ],
    "size": [
-    360,
-    230
+    380,
+    250
    ],
    "flags": {},
    "order": 10,
@@ -427,7 +427,7 @@
     false,
     "any",
     "any",
-    -1
+    "mosaic_all"
    ],
    "title": "COF Images: poses"
   },
@@ -435,11 +435,11 @@
    "id": 12,
    "type": "PreviewImage",
    "pos": [
-    400,
-    920
+    560,
+    1020
    ],
    "size": [
-    400,
+    440,
     360
    ],
    "flags": {},
@@ -462,11 +462,11 @@
    "id": 13,
    "type": "COFVoice",
    "pos": [
-    820,
-    920
+    1240,
+    1020
    ],
    "size": [
-    300,
+    380,
     110
    ],
    "flags": {},
@@ -507,18 +507,18 @@
     "Node name for S&R": "COFVoice"
    },
    "widgets_values": [
-    0
+    "sample_001"
    ]
   },
   {
    "id": 14,
    "type": "PreviewAudio",
    "pos": [
-    1140,
-    920
+    1800,
+    1020
    ],
    "size": [
-    360,
+    420,
     120
    ],
    "flags": {},
@@ -541,12 +541,12 @@
    "id": 15,
    "type": "PreviewAny",
    "pos": [
-    1140,
-    1060
+    1800,
+    1170
    ],
    "size": [
-    360,
-    140
+    420,
+    150
    ],
    "flags": {},
    "order": 14,
@@ -568,11 +568,11 @@
    "id": 16,
    "type": "COFPersona",
    "pos": [
-    20,
-    1320
+    0,
+    1460
    ],
    "size": [
-    300,
+    380,
     80
    ],
    "flags": {},
@@ -609,12 +609,12 @@
    "id": 17,
    "type": "PreviewAny",
    "pos": [
-    340,
-    1320
+    560,
+    1460
    ],
    "size": [
-    460,
-    300
+    520,
+    320
    ],
    "flags": {},
    "order": 16,
@@ -636,11 +636,11 @@
    "id": 18,
    "type": "COFMotion3D",
    "pos": [
-    820,
-    1320
+    1240,
+    1460
    ],
    "size": [
-    300,
+    380,
     110
    ],
    "flags": {},
@@ -680,19 +680,19 @@
    },
    "widgets_values": [
     "motion clips",
-    -1
+    "all"
    ]
   },
   {
    "id": 19,
    "type": "PreviewAny",
    "pos": [
-    1140,
-    1320
+    1800,
+    1460
    ],
    "size": [
-    360,
-    220
+    420,
+    240
    ],
    "flags": {},
    "order": 18,
@@ -857,14 +857,37 @@
    "STRING"
   ]
  ],
- "groups": [],
+ "groups": [
+  {
+   "title": "Load",
+   "bounding": [
+    -20,
+    -60,
+    420,
+    330
+   ],
+   "color": "#0f6b5c",
+   "font_size": 24
+  },
+  {
+   "title": "More from the same preset",
+   "bounding": [
+    -20,
+    480,
+    2260,
+    1360
+   ],
+   "color": "#2a3533",
+   "font_size": 24
+  }
+ ],
  "config": {},
  "extra": {
   "ds": {
-   "scale": 0.7,
+   "scale": 0.55,
    "offset": [
-    40,
-    40
+    60,
+    80
    ]
   }
  },

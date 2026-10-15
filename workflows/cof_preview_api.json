@@ -56,7 +56,7 @@
       "include_offered": true,
       "subject": "any",
       "angle": "any",
-      "index": -1
+      "pick": "mosaic_all"
     }
   },
   "7": {
@@ -94,7 +94,7 @@
       "include_offered": false,
       "subject": "any",
       "angle": "any",
-      "index": 0
+      "pick": "image_001"
     }
   },
   "10": {
@@ -120,7 +120,7 @@
       "include_offered": false,
       "subject": "any",
       "angle": "any",
-      "index": -1
+      "pick": "mosaic_all"
     }
   },
   "12": {
@@ -139,7 +139,7 @@
         "1",
         0
       ],
-      "index": 0
+      "sample": "sample_001"
     }
   },
   "14": {
@@ -192,7 +192,7 @@
         0
       ],
       "what": "motion clips",
-      "index": -1
+      "pick": "all"
     }
   },
   "19": {

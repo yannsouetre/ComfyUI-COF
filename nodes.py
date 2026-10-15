@@ -82,6 +82,58 @@ def _pick(v: str) -> str:
     return "" if v in ("", DEFAULT) else v.split(SEP, 1)[0].strip()
 
 
+PAGE = 24                  # images per mosaic page
+MOSAIC_MAX = 64            # mosaic_all never batches more than this
+
+
+def _token(v: str) -> str:
+    return (v or "").split(SEP, 1)[0].strip()
+
+
+def _image_choices(labels: list[str]) -> list[str]:
+    """Dropdown values for a list of images: the whole batch, pages of 24 when there are many, then each image."""
+    n = len(labels)
+    out = [f"mosaic_all{SEP}{n} image{'s' if n != 1 else ''}" + (f", the first {MOSAIC_MAX}" if n > MOSAIC_MAX else "")]
+    if n > PAGE:
+        out += [f"mosaic_page_{p + 1}{SEP}images {p * PAGE + 1}–{min(n, (p + 1) * PAGE)}" for p in range((n + PAGE - 1) // PAGE)]
+    return out + [f"image_{i + 1:03d}{SEP}{lab}" for i, lab in enumerate(labels)]
+
+
+def _select(items: list, pick: str, what: str = "image"):
+    """mosaic_all / mosaic_page_N / image_NNN (or all / item_NNN, sample_NNN) → the chosen items."""
+    t = _token(pick) or "mosaic_all"
+    if t in ("mosaic_all", "all"):
+        if len(items) > MOSAIC_MAX and t == "mosaic_all":
+            print(f"[COF] {len(items)} images: mosaic_all keeps the first {MOSAIC_MAX} — use mosaic_page_N for the others")
+            return items[:MOSAIC_MAX]
+        return items
+    m = re.fullmatch(r"mosaic_page_(\d+)", t)
+    if m:
+        k = int(m.group(1))
+        return items[(k - 1) * PAGE:k * PAGE]
+    m = re.fullmatch(r"(?:image|item|sample)_(\d+)", t)
+    if m:
+        k = int(m.group(1))
+        if not 1 <= k <= len(items):
+            raise COFError(f"{t}: this preset has {len(items)} {what}{'s' if len(items) != 1 else ''} — choose again in the list")
+        return [items[k - 1]]
+    raise COFError(f"unknown choice '{pick}'")
+
+
+def _image_ids(c: COF, pid: str, kind: str, include_offered: bool, allow_intimate: bool, subject: str, angle: str) -> list[str]:
+    kinds = None if kind == "all" else set(REF_KINDS) if kind.startswith("references") else {kind}
+    return c.images(pid, kinds=kinds, include_offered=include_offered, allow_intimate=allow_intimate,
+                    subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
+
+
+def _voice_samples(c: COF, pid: str) -> list[tuple[str, dict]]:
+    return [(aid, v) for v in c.voices(pid) for aid in (v.get("samples") or [])]
+
+
+def _voice_label(v: dict) -> str:
+    return f"{english(v.get('label') or v['_id'])} [{v.get('language', '?')}]"
+
+
 def _to_tensor(images: list[Image.Image], max_size: int):
     """Batch of RGB images as a ComfyUI IMAGE tensor [B, H, W, 3] in 0..1; letterboxed to one size."""
     import torch
@@ -155,7 +207,7 @@ class COFLoadCharacter:
 
 
 class COFImages:
-    """Advanced: pick images of the preset by kind, subject and angle, applied or also offered; index picks one."""
+    """Advanced: pick images of the preset by kind, subject and angle, applied or also offered; one image, a page or all."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -165,23 +217,25 @@ class COFImages:
             "include_offered": ("BOOLEAN", {"default": False, "tooltip": "also the outfits, accessories… offered with this preset"}),
             "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
             "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
-        }, "optional": {
-            "index": ("INT", {"default": -1, "min": -1, "max": 256, "tooltip": "-1 = every matching image (a batch); 0, 1, 2… = only that one (see the labels output)"}),
+            "pick": (["mosaic_all"] + [f"image_{i:03d}" for i in range(1, 65)], {"default": "mosaic_all",
+                     "tooltip": "the list shows the images that match, by name: mosaic_all = all of them as a batch (64 at most), mosaic_page_N = 24 at a time, image_NNN = one image"}),
         }}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, pick):
+        return True                      # the list is filled per file by web/cof.js
 
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("images", "count", "labels")
-    OUTPUT_TOOLTIPS = ("the matching images (or the one chosen by index)", "how many images match", "one line per matching image: index, element, view")
-    FUNCTION = "pick"
+    OUTPUT_TOOLTIPS = ("the chosen image, page or batch", "how many images match", "one line per matching image: its name and what it shows")
+    FUNCTION = "pick_images"
     CATEGORY = "COF"
 
-    def pick(self, cof, kind, include_offered, subject, angle, index=-1):
+    def pick_images(self, cof, kind, include_offered, subject, angle, pick="mosaic_all"):
         c, pid = cof["cof"], cof["preset"]
-        kinds = None if kind == "all" else set(REF_KINDS) if kind.startswith("references") else {kind}
-        aids = c.images(pid, kinds=kinds, include_offered=include_offered, allow_intimate=cof["allow_intimate"],
-                        subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
-        labels = "\n".join(f"{i}: {c.image_label(a)}" for i, a in enumerate(aids))
-        chosen = aids if index < 0 or not aids else [aids[min(index, len(aids) - 1)]]
+        aids = _image_ids(c, pid, kind, include_offered, cof["allow_intimate"], subject, angle)
+        labels = "\n".join(f"image_{i + 1:03d}: {c.image_label(a)}" for i, a in enumerate(aids))
+        chosen = _select(aids, pick) if aids else []
         return (_to_tensor(_images(c, chosen), cof["max_size"]), len(aids), labels)
 
 
@@ -281,22 +335,26 @@ class COFVoice:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"cof": ("COF",), "index": ("INT", {"default": 0, "min": 0, "max": 64, "tooltip": "which sample (see the labels output)"})}}
+        return {"required": {"cof": ("COF",), "sample": ([f"sample_{i:03d}" for i in range(1, 17)], {"default": "sample_001", "tooltip": "the list shows the preset's voice samples by name and language"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, sample):
+        return True
 
     RETURN_TYPES = ("AUDIO", "STRING", "STRING")
     RETURN_NAMES = ("audio", "transcript", "labels")
     FUNCTION = "voice"
     CATEGORY = "COF"
 
-    def voice(self, cof, index):
+    def voice(self, cof, sample="sample_001"):
         c, pid = cof["cof"], cof["preset"]
         if c.is_real_without_consent(pid):
             print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
-        samples = [(aid, v) for v in c.voices(pid) for aid in (v.get("samples") or [])]
+        samples = _voice_samples(c, pid)
         if not samples:
             raise COFError(f"preset {pid} has no voice sample")
-        labels = "\n".join(f"{i}: {english(v.get('label') or v['_id'])} [{v.get('language', '?')}]" for i, (_, v) in enumerate(samples))
-        aid = samples[min(index, len(samples) - 1)][0]
+        labels = "\n".join(f"sample_{i + 1:03d}: {_voice_label(v)}" for i, (_, v) in enumerate(samples))
+        aid = _select(samples, sample, "voice sample")[0][0]
         tmp = Path(folder_paths.get_temp_directory() if folder_paths else ".") / "cof" / _slug(c.path.stem)
         f = c.extract(aid, tmp)
         wave, sr = _load_audio(str(f))
@@ -333,18 +391,22 @@ class COFMotion3D:
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {"cof": ("COF",), "what": (["motion clips", "3D files"],),
-                             "index": ("INT", {"default": -1, "min": -1, "max": 256, "tooltip": "-1 = all; 0, 1, 2… = only that one (see labels)"})}}
+                             "pick": (["all"] + [f"item_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the list shows the preset's clips or 3D files by name; all = every one"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, pick):
+        return True
 
     RETURN_TYPES = ("STRING", "STRING", "INT")
     RETURN_NAMES = ("paths", "labels", "count")
     FUNCTION = "export"
     CATEGORY = "COF"
 
-    def export(self, cof, what, index):
+    def export(self, cof, what, pick="all"):
         c, pid = cof["cof"], cof["preset"]
         items = c.media(pid, "motion" if what.startswith("motion") else "volume3d")
-        labels = "\n".join(f"{i}: {x['label']}" for i, x in enumerate(items))
-        chosen = items if index < 0 or not items else [items[min(index, len(items) - 1)]]
+        labels = "\n".join(f"item_{i + 1:03d}: {x['label']}" for i, x in enumerate(items))
+        chosen = _select(items, "all" if _token(pick) == "all" else pick, "file") if items else []
         base = Path(folder_paths.get_input_directory() if folder_paths else ".")
         dest = base / ("3d" if what.startswith("3D") else "cof") / f"cof-{_slug(c.path.stem)}"
         paths = [str(c.extract(x["asset"], dest) if x.get("asset") else c.extract_path(x["path"], dest)) for x in chosen]
@@ -383,6 +445,32 @@ def _routes():
             "characters": [f"{i}{SEP}{n}" for i, n in c.character_choices()],
             "default_character": next((f"{i}{SEP}{n}" for i, n in c.character_choices() if i == c.default_identity()), ""),
         })
+
+
+    @PromptServer.instance.routes.get("/cof/choices")
+    async def cof_choices(request):
+        q = request.query
+        name = q.get("file", "")
+        if name not in _files():
+            return web.json_response({"error": "unknown file"}, status=404)
+        try:
+            c = _open(name)
+            pid = c.find_preset(_pick(q.get("preset", "")), _pick(q.get("character", "")))
+            node = q.get("node", "")
+            if node == "images":
+                aids = _image_ids(c, pid, q.get("kind", "all"), q.get("offered") == "true", q.get("allow") == "true",
+                                  q.get("subject", "any"), q.get("angle", "any"))
+                values = _image_choices([c.image_label(a) for a in aids])
+            elif node == "voice":
+                values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or ["sample_001"]
+            elif node == "media":
+                items = c.media(pid, "volume3d" if q.get("what", "").startswith("3D") else "motion")
+                values = [f"all{SEP}{len(items)} file{'s' if len(items) != 1 else ''}"] + [f"item_{i + 1:03d}{SEP}{x['label']}" for i, x in enumerate(items)]
+            else:
+                return web.json_response({"error": "unknown node"}, status=400)
+        except Exception as ex:
+            return web.json_response({"error": str(ex)}, status=400)
+        return web.json_response({"values": values})
 
 
 _routes()

@@ -17,15 +17,16 @@ A **COF (Character Open File)** `.cof` packs a whole AI character — reference 
 | Node | Inputs | Outputs |
 |---|---|---|
 | **COF Load Character** (simple — enough for most workflows) | `.cof` file, **preset** and **character** dropdowns (filled from the selected file), max size | `cof`, primary image, reference images, prompt, info |
-| COF Images (advanced) | `cof`, kind (clothing, accessory, environment, posture…), include offered, subject, angle, **index** | images, count, labels |
-| COF Voice (advanced) | `cof`, sample index | audio, transcript, labels |
+| COF Images (advanced) | `cof`, kind (clothing, accessory, environment, posture…), include offered, subject, angle, **pick** (a dropdown of the matching images by name) | images, count, labels |
+| COF Voice (advanced) | `cof`, **sample** (a dropdown of the voice samples, with their language) | audio, transcript, labels |
 | COF Persona Text (advanced) | `cof` | the preset's personality as text (for a language-model node), language |
-| COF Motion & 3D Files (advanced) | `cof`, motion clips or 3D files, index | paths of the exported files, labels, count |
+| COF Motion & 3D Files (advanced) | `cof`, motion clips or 3D files, **pick** (a dropdown of the files by name, or all) | paths of the exported files, labels, count |
 | COF Apply LoRA (advanced) | model, clip, `cof`, strength (-1 = the weight recommended in the file) | model, clip, trigger words |
 | COF Reference Latents / RefMods (advanced) | `cof`, models subfolder (default `refmods`) | paths of the exported `.safetensors`, base models |
 
 - **Presets**: the dropdown lists the presets of the selected file — and, in a file with several characters, those of the selected character. `(default)` is the character's default preset. After adding a `.cof` file, press **R** (refresh) in ComfyUI.
-- **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To use a single image, take **COF Images** and set **index** (0, 1, 2…): its `labels` output says which image is which — for example the two framings of an environment, desktop and mobile.
+- **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To choose, take **COF Images**: its **pick** dropdown lists the images that match, by name (`image_001 — Bright studio facing the park (environment) · background.desktop`…), plus `mosaic_all` for the whole batch (64 images at most) and `mosaic_page_1`, `mosaic_page_2`… (24 at a time) when there are many.
+- The dropdowns follow the **COF Load Character** node they are connected to: change the file, the preset or the character, and the lists update.
 - **Motion clips** (BVH) are exported to `input/cof/`, **3D files** (VRM, GLB, OBJ…) to `input/3d/`, where the **Load 3D** node lists them.
 
 The **prompt** combines the trigger words of the preset's LoRA, the character's name and visual summary, the preset's age, the outfit, accessories and place applied by the preset, and its visual style.
@@ -61,6 +62,7 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
+- **0.4.0** — images, voice samples and files chosen by name in dropdowns (with pages for large sets); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
 - **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
 - **0.1.0** — first version.
