@@ -193,8 +193,8 @@
     500
    ],
    "size": [
-    1420,
-    330
+    2240,
+    560
    ],
    "flags": {},
    "order": 5,
@@ -202,7 +202,8 @@
    "inputs": [],
    "outputs": [],
    "properties": {
-    "Node name for S&R": "MarkdownNote"
+    "Node name for S&R": "MarkdownNote",
+    "cof_readme": true
    },
    "widgets_values": [
     "## Read me — how this workflow works\n\n**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.\n\n- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.\n- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.\n- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF"
@@ -216,7 +217,7 @@
    "type": "COFPersonality",
    "pos": [
     0,
-    900
+    1130
    ],
    "size": [
     380,
@@ -257,7 +258,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    900
+    1130
    ],
    "size": [
     520,
@@ -284,7 +285,7 @@
    "type": "COFAppearance",
    "pos": [
     1240,
-    900
+    1130
    ],
    "size": [
     380,
@@ -338,7 +339,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    900
+    1130
    ],
    "size": [
     440,
@@ -364,7 +365,7 @@
    "type": "COFAppearance",
    "pos": [
     0,
-    1340
+    1570
    ],
    "size": [
     380,
@@ -420,7 +421,7 @@
    "type": "PreviewImage",
    "pos": [
     560,
-    1340
+    1570
    ],
    "size": [
     440,
@@ -446,7 +447,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1630
+    1860
    ],
    "size": [
     520,
@@ -473,7 +474,7 @@
    "type": "COF3D",
    "pos": [
     1240,
-    1340
+    1570
    ],
    "size": [
     380,
@@ -523,7 +524,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    1340
+    1570
    ],
    "size": [
     440,
@@ -550,7 +551,7 @@
    "type": "COFVoice",
    "pos": [
     0,
-    1800
+    2030
    ],
    "size": [
     380,
@@ -602,7 +603,7 @@
    "type": "PreviewAudio",
    "pos": [
     560,
-    1800
+    2030
    ],
    "size": [
     520,
@@ -628,7 +629,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1950
+    2180
    ],
    "size": [
     520,
@@ -655,7 +656,7 @@
    "type": "COFPostures",
    "pos": [
     1240,
-    1800
+    2030
    ],
    "size": [
     380,
@@ -707,7 +708,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    1800
+    2030
    ],
    "size": [
     440,
@@ -733,7 +734,7 @@
    "type": "COFMotion",
    "pos": [
     0,
-    2240
+    2470
    ],
    "size": [
     380,
@@ -783,7 +784,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    2240
+    2470
    ],
    "size": [
     520,
@@ -810,7 +811,7 @@
    "type": "COFFiles",
    "pos": [
     1240,
-    2240
+    2470
    ],
    "size": [
     380,
@@ -867,7 +868,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    2240
+    2470
    ],
    "size": [
     440,
@@ -1084,7 +1085,7 @@
    "title": "One node per category of the COF builder",
    "bounding": [
     -20,
-    840,
+    1070,
     2300,
     1780
    ],

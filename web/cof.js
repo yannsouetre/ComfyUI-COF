@@ -91,8 +91,23 @@ function hook(node, names, fn) {
   }
 }
 
+// the Read me note of the COF workflows (property cof_readme): text twice the size set in ComfyUI's settings
+function bigNote(node, tries = 10) {
+  if (!node?.properties?.cof_readme) return;
+  const w = node.widgets?.find(x => x.inputEl || x.element);
+  const el = w?.inputEl || w?.element;
+  const tip = el?.querySelector?.(".tiptap") || el;
+  if (!tip || tip.dataset.cofBig) return;
+  const px = parseFloat(getComputedStyle(tip).fontSize);
+  if (!px) { if (tries > 0) setTimeout(() => bigNote(node, tries - 1), 200); return; }   // not in the page yet
+  tip.style.fontSize = `${px * 2}px`;
+  tip.dataset.cofBig = "1";
+}
+
 app.registerExtension({
   name: "cof.dropdowns",
+  nodeCreated(node) { setTimeout(() => bigNote(node), 300); },
+  loadedGraphNode(node) { setTimeout(() => bigNote(node), 300); },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     const isLoader = nodeData.name === "COFLoadCharacter", spec = PICKERS[nodeData.name];
     if (!isLoader && !spec) return;

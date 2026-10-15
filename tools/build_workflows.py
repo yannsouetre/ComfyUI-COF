@@ -44,13 +44,14 @@ node(2, "PreviewImage", (560, 0), (300, 440), title="Primary image", inputs=[IMG
 node(3, "PreviewImage", (900, 0), (520, 440), title="References (batch)", inputs=[IMG]); link(1, 2, 3, "images")
 node(4, "PreviewAny", (1800, 0), (420, 210), title="Prompt", inputs=[STR]); link(1, 3, 4, "source")
 node(5, "PreviewAny", (1800, 240), (420, 210), title="Info and rights", inputs=[STR]); link(1, 4, 5, "source")
-node(6, "MarkdownNote", (0, 500), (1420, 330), [NOTE], title="Read me", )
+node(6, "MarkdownNote", (0, 500), (2240, 560), [NOTE], title="Read me", )
 nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"})
+nodes[-1]["properties"]["cof_readme"] = True        # web/cof.js shows this note's text at twice the usual size
 
 IMGOUT = [("images", "IMAGE"), ("count", "INT"), ("labels", "STRING")]
 FILEOUT = [("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]
 COF_IN = [("cof", "COF")]
-Y = [900, 1340, 1800, 2240]
+Y = [1130, 1570, 2030, 2470]
 # laid out in the builder's order, left to right then top to bottom:
 # Personality, Appearance (outfits), Appearance (a place), 3D, Voice, Postures, Motion, Files
 node(10, "COFPersonality", (0, Y[0]), (380, 80), inputs=COF_IN, outputs=[("persona", "STRING"), ("language", "STRING")]); link(1, 0, 10, "cof")
@@ -74,7 +75,7 @@ node(43, "PreviewAny", (1800, Y[3]), (440, 320), title="Files: text", inputs=[ST
 
 ui = {"last_node_id": max(n["id"] for n in nodes), "last_link_id": len(links), "nodes": nodes, "links": links,
       "groups": [{"title": "Load", "bounding": [-20, -60, 420, 330], "color": "#0f6b5c", "font_size": 24},
-                 {"title": "One node per category of the COF builder", "bounding": [-20, 840, 2300, 1780], "color": "#2a3533", "font_size": 24}],
+                 {"title": "One node per category of the COF builder", "bounding": [-20, 1070, 2300, 1780], "color": "#2a3533", "font_size": 24}],
       "config": {}, "extra": {"ds": {"scale": 0.55, "offset": [60, 80]}}, "version": 0.4}
 (ROOT / "workflows" / "cof_preview.json").write_text(json.dumps(ui, ensure_ascii=False, indent=1), encoding="utf-8")
 
