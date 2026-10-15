@@ -129,12 +129,13 @@ def _image_ids(c: COF, pid: str, kind: str, include_offered: bool, allow_intimat
                     subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
 
 
-def _kind_choices(c: COF, pid: str, include_offered: bool, allow_intimate: bool) -> list[str]:
-    """The kinds of images this preset really has, with their counts; "references" and "all" always come first."""
-    out = []
+def _kind_choices(c: COF, pid: str, include_offered: bool, allow_intimate: bool, current: str = "") -> list[str]:
+    """The kinds of images this preset really has, with their counts; "references", "all" and the node's current
+    kind always appear (with 0 images if the preset has none of it)."""
+    out, cur = [], _token(current)
     for k in KIND_CHOICES:
         n = len(_image_ids(c, pid, k, include_offered, allow_intimate, "any", "any"))
-        if n or k in KIND_CHOICES[:2]:
+        if n or k in KIND_CHOICES[:2] or k == cur:
             out.append(f"{k}{SEP}{n} image{'s' if n != 1 else ''}")
     return out
 
@@ -247,7 +248,8 @@ class COFImages:
     def pick_images(self, cof, kind, include_offered, subject, angle, pick="mosaic_all"):
         c, pid = cof["cof"], cof["preset"]
         aids = _image_ids(c, pid, kind, include_offered, cof["allow_intimate"], subject, angle)
-        labels = "\n".join(f"image_{i + 1:03d}: {c.image_label(a)}" for i, a in enumerate(aids))
+        labels = "\n".join(f"image_{i + 1:03d}: {c.image_label(a)}" for i, a in enumerate(aids)) \
+            or f"(this preset has no {_token(kind)} image: a blank 64×64 image is returned)"
         chosen = _select(aids, pick) if aids else []
         return (_to_tensor(_images(c, chosen), cof["max_size"]), len(aids), labels)
 
@@ -364,8 +366,10 @@ class COFVoice:
         if c.is_real_without_consent(pid):
             print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
         samples = _voice_samples(c, pid)
-        if not samples:
-            raise COFError(f"preset {pid} has no voice sample")
+        if not samples:                  # a preset without voice must not stop the whole workflow
+            import torch
+            print(f"[COF] preset {pid} has no voice sample: one second of silence instead")
+            return ({"waveform": torch.zeros((1, 1, 44100)), "sample_rate": 44100}, "", "(this preset has no voice sample)")
         labels = "\n".join(f"sample_{i + 1:03d}: {_voice_label(v)}" for i, (_, v) in enumerate(samples))
         aid = _select(samples, sample, "voice sample")[0][0]
         tmp = Path(folder_paths.get_temp_directory() if folder_paths else ".") / "cof" / _slug(c.path.stem)
@@ -471,13 +475,13 @@ def _routes():
             pid = c.find_preset(_pick(q.get("preset", "")), _pick(q.get("character", "")))
             node = q.get("node", "")
             if node == "kinds":
-                values = _kind_choices(c, pid, q.get("offered") == "true", q.get("allow") == "true")
+                values = _kind_choices(c, pid, q.get("offered") == "true", q.get("allow") == "true", q.get("current", ""))
             elif node == "images":
                 aids = _image_ids(c, pid, q.get("kind", "all"), q.get("offered") == "true", q.get("allow") == "true",
                                   q.get("subject", "any"), q.get("angle", "any"))
                 values = _image_choices([c.image_label(a) for a in aids])
             elif node == "voice":
-                values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or ["sample_001"]
+                values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":
                 items = c.media(pid, "volume3d" if q.get("what", "").startswith("3D") else "motion")
                 values = [f"all{SEP}{len(items)} file{'s' if len(items) != 1 else ''}"] + [f"item_{i + 1:03d}{SEP}{x['label']}" for i, x in enumerate(items)]

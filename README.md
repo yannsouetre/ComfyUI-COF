@@ -62,7 +62,7 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
-- **0.4.0** — the kind list shows only the kinds the preset has, with counts; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
+- **0.4.0** — the kind list shows only the kinds the preset has, with counts (the node keeps its own kind, even at 0); a preset without a voice gives one second of silence instead of stopping the run; image labels show size and orientation; the prompt leaves out the summary for a preset of another age; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
 - **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
 - **0.1.0** — first version.

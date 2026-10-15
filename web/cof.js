@@ -70,7 +70,7 @@ async function refreshPicker(node) {
     character: W(src, "character")?.value ?? "", allow: W(src, "allow_intimate")?.value ? "true" : "false" };
   if (spec.kinds) {                       // first the kinds this preset really has, with their counts
     const k = await getJSON(`/cof/choices?${new URLSearchParams({ node: "kinds", ...base,
-      offered: W(node, "include_offered")?.value ? "true" : "false" })}`);
+      offered: W(node, "include_offered")?.value ? "true" : "false", current: token(W(node, "kind")?.value) })}`);
     if (k?.values) setValues(W(node, "kind"), k.values);
   }
   const q = new URLSearchParams({ node: spec.node, ...base, ...spec.params(node) });

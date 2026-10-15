@@ -150,3 +150,21 @@ def test_routes_fill_the_dropdowns(pack, monkeypatch):
     assert d["values"][0].startswith("all — ") and d["values"][1].startswith("item_001 — ")
     st, _ = call("/cof/choices", node="images", file="../../etc/passwd")
     assert st == 404
+
+
+def test_preset_without_voice_and_other_ages(pack):
+    """Martien has no voice sample and no clothing; Clara at 12 is not described as the adult designer."""
+    nodes, _ = pack
+    m = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-martien.cof"), "(default)", "martien — Martien", 256)[0]
+    audio, transcript, labels = nodes.COFVoice().voice(m, "sample_001")
+    assert audio["sample_rate"] == 44100 and audio["waveform"].shape == (1, 1, 44100) and transcript == ""
+    assert "no voice sample" in labels
+    kinds = nodes._kind_choices(m["cof"], m["preset"], True, False, "clothing — 4 images")
+    assert "clothing — 0 images" in kinds and kinds[0].startswith("references")
+    from comfyui_cof.cof_reader import COF
+    c = COF(str(SAMPLES / "clara-mercier.cof"))
+    assert "designer" in c.prompt("default") and "designer" not in c.prompt("fr-12") and "12 years old" in c.prompt("fr-12")
+    env = [c.image_label(a) for a in c.images("fr-12", kinds={"environment"})]
+    assert env[0].endswith("landscape") and env[1].endswith("portrait")
+    imgs, n, lab = nodes.COFImages().pick_images(m, "clothing — 0 images", True, "any", "any", "mosaic_all — 0 images")
+    assert n == 0 and imgs.shape == (1, 64, 64, 3) and "no clothing image" in lab

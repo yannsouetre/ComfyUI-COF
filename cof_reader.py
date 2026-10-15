@@ -310,10 +310,16 @@ class COF:
         I = self.identity(self.owner(pid))
         r = self.resolved(self.slots(pid))
         parts = [I.get("name") or self.m.get("name") or ""]
-        vs = visual_summary(I.get("summary") or self.m.get("summary") or "", parts[0])
+        age = self.preset_age(pid)
+        # the character's summary describes it at its default age: left out of a preset of another age
+        # (Clara "a designer from Lyon" is not a designer at 12)
+        try:
+            same_age = age == self.preset_age(self.default_preset(self.owner(pid)))
+        except COFError:
+            same_age = True
+        vs = visual_summary(I.get("summary") or self.m.get("summary") or "", parts[0]) if same_age else ""
         if vs:
             parts.append(vs)
-        age = self.preset_age(pid)
         if age is not None:
             parts.append(f"{int(age)} years old")
         app = r.get("appearance", [])
@@ -378,7 +384,9 @@ class COF:
                         self._labels.setdefault(a, f"{english(v.get('label') or vid)} ({v.get('kind', cat)})")
         a = self.assets.get(aid) or {}
         extra = " ".join(x for x in (a.get("subject"), a.get("angle")) if x) or Path(a.get("path", aid)).stem
-        return f"{self._labels.get(aid, aid)} · {extra}"
+        w, h = a.get("width"), a.get("height")
+        size = f" · {w}×{h} {'landscape' if w > h else 'portrait' if h > w else 'square'}" if isinstance(w, int) and isinstance(h, int) and w and h else ""
+        return f"{self._labels.get(aid, aid)} · {extra}{size}"
 
     def persona(self, pid: str) -> tuple[str, str]:
         """The preset's personality as plain text for a language model, and its language(s)."""
