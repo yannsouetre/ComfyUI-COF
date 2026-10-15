@@ -1,7 +1,7 @@
 // ComfyUI-COF: dropdowns filled from the .cof file itself.
 // - COF Load Character: the presets of the selected file (and character).
-// - COF Images / COF Voice / COF Motion & 3D Files: the matching images, samples or files by name,
-//   read from the COF Load Character node they are connected to.
+// - the category nodes (COF Appearance, Postures, Voice, 3D, Motion, Files): the matching types, images, samples
+//   or files by name, read from the COF Load Character node they are connected to.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
@@ -54,12 +54,16 @@ async function refreshLoader(node) {
   for (const n of app.graph?._nodes || []) if (PICKERS[n.comfyClass] && sourceLoader(n) === node) refreshPicker(n);
 }
 
+// one picker per category node: which widget it fills, from which route, with which category
+const imageParams = n => ({ kind: token(W(n, "kind")?.value), offered: W(n, "include_offered")?.value ? "true" : "false",
+  subject: W(n, "subject")?.value ?? "any", angle: W(n, "angle")?.value ?? "any" });
 const PICKERS = {
-  COFImages: { widget: "pick", node: "images", kinds: true, params: n => ({
-    kind: token(W(n, "kind")?.value), offered: W(n, "include_offered")?.value ? "true" : "false",
-    subject: W(n, "subject")?.value, angle: W(n, "angle")?.value }), watch: ["kind", "include_offered", "subject", "angle"] },
+  COFAppearance: { widget: "pick", node: "images", cat: "appearance", kinds: true, params: imageParams, watch: ["kind", "include_offered", "subject", "angle"] },
+  COFPostures: { widget: "pick", node: "images", cat: "posture", kinds: true, params: imageParams, watch: ["kind", "include_offered"] },
   COFVoice: { widget: "sample", node: "voice", params: () => ({}), watch: [] },
-  COFMotion3D: { widget: "pick", node: "media", params: n => ({ what: W(n, "what")?.value }), watch: ["what"] },
+  COF3D: { widget: "pick", node: "media", cat: "volume3d", params: () => ({}), watch: [] },
+  COFMotion: { widget: "pick", node: "media", cat: "motion", params: () => ({}), watch: [] },
+  COFFiles: { widget: "pick", node: "media", cat: "files", kinds: true, params: n => ({ kind: token(W(n, "kind")?.value) }), watch: ["kind"] },
 };
 
 async function refreshPicker(node) {
@@ -69,11 +73,11 @@ async function refreshPicker(node) {
     file: W(src, "cof_file")?.value ?? "", preset: W(src, "preset")?.value ?? "",
     character: W(src, "character")?.value ?? "", allow: W(src, "allow_intimate")?.value ? "true" : "false" };
   if (spec.kinds) {                       // first the kinds this preset really has, with their counts
-    const k = await getJSON(`/cof/choices?${new URLSearchParams({ node: "kinds", ...base,
+    const k = await getJSON(`/cof/choices?${new URLSearchParams({ node: "kinds", cat: spec.cat, ...base,
       offered: W(node, "include_offered")?.value ? "true" : "false", current: token(W(node, "kind")?.value) })}`);
     if (k?.values) setValues(W(node, "kind"), k.values);
   }
-  const q = new URLSearchParams({ node: spec.node, ...base, ...spec.params(node) });
+  const q = new URLSearchParams({ node: spec.node, ...(spec.cat ? { cat: spec.cat } : {}), ...base, ...spec.params(node) });
   const d = await getJSON(`/cof/choices?${q}`);
   if (d?.values) { setValues(W(node, spec.widget), d.values); node.setDirtyCanvas?.(true, true); }
 }

@@ -1,6 +1,6 @@
-"""ComfyUI nodes for COF characters. One simple node (COF Load Character) covers most workflows;
-the advanced nodes take its COF output to pick images, apply the embedded LoRA, export pre-encoded
-references (RefMods) or play a voice sample."""
+"""ComfyUI nodes for COF characters. COF Load Character covers most workflows; then one node per category of
+the COF builder (Personality, Appearance, Identity weights, 3D, Voice, Postures, Motion, Files), each taking the
+loader's `cof` output."""
 from __future__ import annotations
 
 import io
@@ -18,8 +18,18 @@ except ImportError:                    # tests outside ComfyUI
 
 from .cof_reader import COF, COFError, REF_KINDS, english
 
-KIND_CHOICES = ["references (face, reference set, sheet, body)", "all", "face", "body", "reference-set", "character-sheet",
-                "hair", "clothing", "accessory", "environment", "posture"]
+REFS = "references (face, reference set, sheet, body)"
+# the variant types of each category, in the builder's order; "all" (and, for appearance, "references") come first
+KINDS = {
+    "appearance": [REFS, "all", "face", "body", "reference-set", "character-sheet", "hair", "clothing", "accessory",
+                   "pilosity", "feature", "environment", "intimate"],
+    "posture": ["all", "photo", "photos", "openpose", "silhouette"],
+    "files": ["all", "skill", "memory", "document", "other"],
+}
+ALWAYS = {"appearance": 2, "posture": 1, "files": 1}       # how many leading choices are always listed
+# builder icons (the builder's LoRA icon is a drawing: 🧬 stands for it)
+ICON = {"load": "👤", "personality": "📝", "appearance": "🖼️", "weights": "🧬", "volume3d": "🧊", "voice": "👄",
+        "posture": "🏃", "motion": "🎥", "files": "📁"}
 
 
 def _register_folder():
@@ -122,22 +132,34 @@ def _select(items: list, pick: str, what: str = "image"):
     raise COFError(f"unknown choice '{pick}'")
 
 
-def _image_ids(c: COF, pid: str, kind: str, include_offered: bool, allow_intimate: bool, subject: str, angle: str) -> list[str]:
+def _image_ids(c: COF, pid: str, kind: str, include_offered: bool, allow_intimate: bool, subject: str = "any",
+               angle: str = "any", cat: str = "appearance") -> list[str]:
     kind = _token(kind)                  # "clothing — 4 images" → "clothing"
-    kinds = None if kind == "all" else set(REF_KINDS) if kind.startswith("references") else {kind}
+    kinds = None if kind in ("all", "") else set(REF_KINDS) if kind.startswith("references") else {kind}
     return c.images(pid, kinds=kinds, include_offered=include_offered, allow_intimate=allow_intimate,
-                    subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
+                    subject="" if subject == "any" else subject, angle="" if angle == "any" else angle, cats={cat})
 
 
-def _kind_choices(c: COF, pid: str, include_offered: bool, allow_intimate: bool, current: str = "") -> list[str]:
-    """The kinds of images this preset really has, with their counts; "references", "all" and the node's current
-    kind always appear (with 0 images if the preset has none of it)."""
-    out, cur = [], _token(current)
-    for k in KIND_CHOICES:
-        n = len(_image_ids(c, pid, k, include_offered, allow_intimate, "any", "any"))
-        if n or k in KIND_CHOICES[:2] or k == cur:
-            out.append(f"{k}{SEP}{n} image{'s' if n != 1 else ''}")
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'s' if n != 1 else ''}"
+
+
+def _kind_choices(c: COF, pid: str, include_offered: bool, allow_intimate: bool, current: str = "", cat: str = "appearance") -> list[str]:
+    """The variant types of one category that this preset really has, with their counts. The leading choices
+    ("references", "all") and the node's current type always appear (with 0 if the preset has none of it)."""
+    out, cur, kinds = [], _token(current), KINDS[cat]
+    for i, k in enumerate(kinds):
+        if cat == "files":
+            n, word = len(c.media(pid, "files", None if k == "all" else {k})), "file"
+        else:
+            n, word = len(_image_ids(c, pid, k, include_offered, allow_intimate, cat=cat)), "image"
+        if n or i < ALWAYS[cat] or k == cur:
+            out.append(f"{k}{SEP}{_plural(n, word)}")
     return out
+
+
+def _media_choices(items: list[dict]) -> list[str]:
+    return [f"all{SEP}{_plural(len(items), 'file')}"] + [f"item_{i + 1:03d}{SEP}{x['label']}" for i, x in enumerate(items)]
 
 
 def _voice_samples(c: COF, pid: str) -> list[tuple[str, dict]]:
@@ -204,7 +226,7 @@ class COFLoadCharacter:
     RETURN_NAMES = ("cof", "primary_image", "references", "prompt", "info")
     OUTPUT_TOOLTIPS = ("the loaded character, for the advanced COF nodes",
                        "one image: the preset's main image",
-                       "a batch of every reference view (face, reference set, character sheet, body) — for nodes that take several reference images; pick one with COF Images (index)",
+                       "a batch of every reference view (face, reference set, character sheet, body) — for nodes that take several reference images; pick one with COF Appearance",
                        "a ready text prompt for this preset", "rights, age and the presets of this character")
     FUNCTION = "load"
     CATEGORY = "COF"
@@ -220,38 +242,66 @@ class COFLoadCharacter:
                 _to_tensor(_images(cof, refs), max_size), cof.prompt(pid), cof.summary(pid))
 
 
-class COFImages:
-    """Advanced: pick images of the preset by kind, subject and angle, applied or also offered; one image, a page or all."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {
-            "cof": ("COF",),
-            "kind": (KIND_CHOICES, {"tooltip": "the kinds of images this preset has, with their counts"}),
-            "include_offered": ("BOOLEAN", {"default": False, "tooltip": "also the outfits, accessories… offered with this preset"}),
-            "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
-            "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
-            "pick": (["mosaic_all"] + [f"image_{i:03d}" for i in range(1, 65)], {"default": "mosaic_all",
-                     "tooltip": "the list shows the images that match, by name: mosaic_all = all of them as one batch (up to 24 images); beyond 24, mosaic_page_1, mosaic_page_2… = 24 at a time; image_NNN = one image"}),
-        }}
-
-    @classmethod
-    def VALIDATE_INPUTS(cls, kind, pick):
-        return True                      # both lists are filled per file by web/cof.js
-
+class _ImageNode:
+    """Shared by COF Appearance and COF Postures: images of one category of the preset, by type, applied or also
+    offered; one image, a page or all of them."""
+    CAT = "appearance"
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("images", "count", "labels")
     OUTPUT_TOOLTIPS = ("the chosen image, page or batch", "how many images match", "one line per matching image: its name and what it shows")
     FUNCTION = "pick_images"
     CATEGORY = "COF"
+    @classmethod
+    def _pick(cls):
+        return (["mosaic_all"] + [f"image_{i:03d}" for i in range(1, 65)], {"default": "mosaic_all",
+                "tooltip": "the images that match, by name: mosaic_all = all of them as one batch (up to 24); beyond 24, mosaic_page_1, mosaic_page_2… = 24 at a time; image_NNN = one image"})
 
-    def pick_images(self, cof, kind, include_offered, subject, angle, pick="mosaic_all"):
+    @classmethod
+    def VALIDATE_INPUTS(cls, kind, pick):
+        return True                      # both lists are filled per file by web/cof.js
+
+    def pick_images(self, cof, kind, include_offered, pick="mosaic_all", subject="any", angle="any"):
         c, pid = cof["cof"], cof["preset"]
-        aids = _image_ids(c, pid, kind, include_offered, cof["allow_intimate"], subject, angle)
+        aids = _image_ids(c, pid, kind, include_offered, cof["allow_intimate"], subject, angle, self.CAT)
         labels = "\n".join(f"image_{i + 1:03d}: {c.image_label(a)}" for i, a in enumerate(aids)) \
-            or f"(this preset has no {_token(kind)} image: a blank 64×64 image is returned)"
+            or f"(this preset has no {_token(kind) if _token(kind) not in ('all', '') and not _token(kind).startswith('references') else ('posture' if self.CAT == 'posture' else 'such')} image: a blank 64×64 image is returned)"
         chosen = _select(aids, pick) if aids else []
         return (_to_tensor(_images(c, chosen), cof["max_size"]), len(aids), labels)
+
+
+OFFERED = ("BOOLEAN", {"default": True, "tooltip": "also the variants offered with this preset (outfits, accessories, poses… available but not applied by default)"})
+
+
+class COFAppearance(_ImageNode):
+    """Appearance: face, body, reference set, character sheet, hair, clothing, accessories, facial and body hair,
+    features, environments (and intimate variants, only when the loader allows them and the file permits it)."""
+    CAT = "appearance"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "cof": ("COF",),
+            "kind": (KINDS["appearance"], {"tooltip": "the appearance types this preset has, with their number of images"}),
+            "include_offered": OFFERED,
+            "pick": cls._pick(),
+        }, "optional": {
+            "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
+            "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
+        }}
+
+
+class COFPostures(_ImageNode):
+    """Postures: pose photos, OpenPose and silhouette images (for pose-guided generation)."""
+    CAT = "posture"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "cof": ("COF",),
+            "kind": (KINDS["posture"], {"tooltip": "the posture types this preset has, with their number of images"}),
+            "include_offered": OFFERED,
+            "pick": cls._pick(),
+        }}
 
 
 class COFApplyLoRA:
@@ -385,8 +435,8 @@ class COFVoice:
         return ({"waveform": wave.unsqueeze(0), "sample_rate": sr}, tr, labels)
 
 
-class COFPersona:
-    """Advanced: the preset's personality as plain text (for a language-model node: system prompt, persona)."""
+class COFPersonality:
+    """Personality: the preset's personality as plain text (for a language-model node: system prompt, persona)."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -401,42 +451,91 @@ class COFPersona:
         return cof["cof"].persona(cof["preset"])
 
 
-class COFMotion3D:
-    """Advanced: exports the preset's motion clips (BVH…) or 3D files (VRM, GLB, OBJ…) to ComfyUI's input folder
-    and returns their paths, for 3D or animation nodes (3D files go to input/3d, where Load 3D finds them)."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"cof": ("COF",), "what": (["motion clips", "3D files"],),
-                             "pick": (["all"] + [f"item_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the list shows the preset's clips or 3D files by name; all = every one"})}}
-
-    @classmethod
-    def VALIDATE_INPUTS(cls, pick):
-        return True
-
+class _FileNode:
+    """Shared by COF 3D and COF Motion: exports the preset's files of one category to ComfyUI's input folder and
+    returns their paths (3D files go to input/3d, where Load 3D finds them)."""
+    CAT, SUB = "volume3d", "3d"
     RETURN_TYPES = ("STRING", "STRING", "INT")
     RETURN_NAMES = ("paths", "labels", "count")
     FUNCTION = "export"
     CATEGORY = "COF"
 
-    def export(self, cof, what, pick="all"):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",),
+                             "pick": (["all"] + [f"item_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the preset's files by name; all = every one"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, pick):
+        return True
+
+    def export(self, cof, pick="all"):
         c, pid = cof["cof"], cof["preset"]
-        items = c.media(pid, "motion" if what.startswith("motion") else "volume3d")
-        labels = "\n".join(f"item_{i + 1:03d}: {x['label']}" for i, x in enumerate(items))
+        items = c.media(pid, self.CAT)
+        labels = "\n".join(f"item_{i + 1:03d}: {x['label']}" for i, x in enumerate(items)) or f"(this preset has no {self.WHAT})"
         chosen = _select(items, "all" if _token(pick) == "all" else pick, "file") if items else []
-        base = Path(folder_paths.get_input_directory() if folder_paths else ".")
-        dest = base / ("3d" if what.startswith("3D") else "cof") / f"cof-{_slug(c.path.stem)}"
+        dest = Path(folder_paths.get_input_directory() if folder_paths else ".") / self.SUB / f"cof-{_slug(c.path.stem)}"
         paths = [str(c.extract(x["asset"], dest) if x.get("asset") else c.extract_path(x["path"], dest)) for x in chosen]
         return ("\n".join(paths), labels, len(items))
 
 
-NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFImages": COFImages, "COFApplyLoRA": COFApplyLoRA,
-                       "COFReferenceLatents": COFReferenceLatents, "COFVoice": COFVoice, "COFPersona": COFPersona,
-                       "COFMotion3D": COFMotion3D}
-NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": "COF Load Character", "COFImages": "COF Images (advanced)",
-                              "COFApplyLoRA": "COF Apply LoRA (advanced)", "COFReferenceLatents": "COF Reference Latents / RefMods (advanced)",
-                              "COFVoice": "COF Voice (advanced)", "COFPersona": "COF Persona Text (advanced)",
-                              "COFMotion3D": "COF Motion & 3D Files (advanced)"}
+class COF3D(_FileNode):
+    """3D: the preset's 3D files (VRM, GLB, USDZ, splat, 3MF…), exported to input/3d."""
+    CAT, SUB, WHAT = "volume3d", "3d", "3D file"
+
+
+class COFMotion(_FileNode):
+    """Motion: the preset's motion clips (BVH, VRMA) and short videos, exported to input/cof."""
+    CAT, SUB, WHAT = "motion", "cof", "motion clip"
+
+
+class COFFiles:
+    """Files: the preset's agent skills, memories and documents. Text files only (Markdown, text, JSON, YAML,
+    CSV) are read and exported — never scripts; a skill keeps its folder layout."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",),
+                             "kind": (KINDS["files"], {"tooltip": "the file types this preset has, with their counts"}),
+                             "pick": (["all"] + [f"item_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the files by name; all = every one"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, kind, pick):
+        return True
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "INT")
+    RETURN_NAMES = ("text", "paths", "labels", "count")
+    OUTPUT_TOOLTIPS = ("the chosen text files, one after the other, each under its path", "where they were exported",
+                       "one line per file", "how many files match")
+    FUNCTION = "export"
+    CATEGORY = "COF"
+
+    def export(self, cof, kind="all", pick="all"):
+        c, pid = cof["cof"], cof["preset"]
+        k = _token(kind)
+        items = c.media(pid, "files", None if k in ("all", "") else {k})
+        labels = "\n".join(f"item_{i + 1:03d}: {x['label']}" for i, x in enumerate(items)) or ("(this preset has no file)" if k in ("all", "") else f"(this preset has no {k} file)")
+        chosen = [x for x in (_select(items, "all" if _token(pick) == "all" else pick, "file") if items else []) if x.get("asset")]
+        dest = Path(folder_paths.get_input_directory() if folder_paths else ".") / "cof" / f"cof-{_slug(c.path.stem)}" / "files"
+        texts = [f"### {x['rel'].split('/' + x['variant'] + '/', 1)[-1]}\n\n{c.read_text(x['asset']).strip()}" for x in chosen]
+        paths = [str(c.extract_text_file(x["asset"], x["variant"], dest)) for x in chosen]
+        return ("\n\n".join(texts), "\n".join(paths), labels, len(items))
+
+
+NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFPersonality": COFPersonality, "COFAppearance": COFAppearance,
+                       "COFApplyLoRA": COFApplyLoRA, "COFReferenceLatents": COFReferenceLatents, "COF3D": COF3D,
+                       "COFVoice": COFVoice, "COFPostures": COFPostures, "COFMotion": COFMotion, "COFFiles": COFFiles}
+# one node per category of the COF builder, in the builder's order, with the builder's icons
+NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": f"{ICON['load']} COF Load Character",
+                              "COFPersonality": f"{ICON['personality']} COF Personality",
+                              "COFAppearance": f"{ICON['appearance']} COF Appearance",
+                              "COFApplyLoRA": f"{ICON['weights']} COF Identity Weights · Apply LoRA",
+                              "COFReferenceLatents": f"{ICON['weights']} COF Identity Weights · Reference Latents (RefMods)",
+                              "COF3D": f"{ICON['volume3d']} COF 3D",
+                              "COFVoice": f"{ICON['voice']} COF Voice",
+                              "COFPostures": f"{ICON['posture']} COF Postures",
+                              "COFMotion": f"{ICON['motion']} COF Motion",
+                              "COFFiles": f"{ICON['files']} COF Files"}
 
 
 def _routes():
@@ -474,17 +573,24 @@ def _routes():
             c = _open(name)
             pid = c.find_preset(_pick(q.get("preset", "")), _pick(q.get("character", "")))
             node = q.get("node", "")
+            cat = q.get("cat", "appearance")
             if node == "kinds":
-                values = _kind_choices(c, pid, q.get("offered") == "true", q.get("allow") == "true", q.get("current", ""))
+                if cat not in KINDS:
+                    return web.json_response({"error": "unknown category"}, status=400)
+                values = _kind_choices(c, pid, q.get("offered") == "true", q.get("allow") == "true", q.get("current", ""), cat)
             elif node == "images":
+                if cat not in ("appearance", "posture"):
+                    return web.json_response({"error": "unknown category"}, status=400)
                 aids = _image_ids(c, pid, q.get("kind", "all"), q.get("offered") == "true", q.get("allow") == "true",
-                                  q.get("subject", "any"), q.get("angle", "any"))
+                                  q.get("subject", "any"), q.get("angle", "any"), cat)
                 values = _image_choices([c.image_label(a) for a in aids])
             elif node == "voice":
                 values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":
-                items = c.media(pid, "volume3d" if q.get("what", "").startswith("3D") else "motion")
-                values = [f"all{SEP}{len(items)} file{'s' if len(items) != 1 else ''}"] + [f"item_{i + 1:03d}{SEP}{x['label']}" for i, x in enumerate(items)]
+                if cat not in ("volume3d", "motion", "files"):
+                    return web.json_response({"error": "unknown category"}, status=400)
+                k = _token(q.get("kind", "all"))
+                values = _media_choices(c.media(pid, cat, None if cat != "files" or k in ("all", "") else {k}))
             else:
                 return web.json_response({"error": "unknown node"}, status=400)
         except Exception as ex:

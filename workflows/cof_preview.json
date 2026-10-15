@@ -1,6 +1,6 @@
 {
- "last_node_id": 20,
- "last_link_id": 18,
+ "last_node_id": 43,
+ "last_link_id": 22,
  "nodes": [
   {
    "id": 1,
@@ -24,10 +24,12 @@
      "links": [
       5,
       7,
-      10,
+      9,
       12,
-      15,
-      17
+      14,
+      17,
+      19,
+      21
      ],
      "slot_index": 0
     },
@@ -185,17 +187,43 @@
   },
   {
    "id": 6,
-   "type": "COFImages",
+   "type": "MarkdownNote",
    "pos": [
     0,
-    820
+    500
    ],
    "size": [
-    380,
-    250
+    1420,
+    330
    ],
    "flags": {},
    "order": 5,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote"
+   },
+   "widgets_values": [
+    "## Read me — how this workflow works\n\n**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.\n\n- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.\n- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.\n- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF"
+   ],
+   "title": "Read me",
+   "color": "#0f6b5c",
+   "bgcolor": "#18201f"
+  },
+  {
+   "id": 10,
+   "type": "COFPersonality",
+   "pos": [
+    0,
+    900
+   ],
+   "size": [
+    380,
+    80
+   ],
+   "flags": {},
+   "order": 6,
    "mode": 0,
    "inputs": [
     {
@@ -206,78 +234,64 @@
    ],
    "outputs": [
     {
-     "name": "images",
-     "type": "IMAGE",
+     "name": "persona",
+     "type": "STRING",
      "links": [
       6
      ],
      "slot_index": 0
     },
     {
-     "name": "count",
-     "type": "INT",
-     "links": [],
-     "slot_index": 1
-    },
-    {
-     "name": "labels",
+     "name": "language",
      "type": "STRING",
      "links": [],
-     "slot_index": 2
+     "slot_index": 1
     }
    ],
    "properties": {
-    "Node name for S&R": "COFImages"
-   },
-   "widgets_values": [
-    "clothing",
-    true,
-    "any",
-    "any",
-    "mosaic_all"
-   ],
-   "title": "COF Images: outfits"
+    "Node name for S&R": "COFPersonality"
+   }
   },
   {
-   "id": 7,
-   "type": "PreviewImage",
+   "id": 11,
+   "type": "PreviewAny",
    "pos": [
     560,
-    820
+    900
    ],
    "size": [
-    440,
-    380
+    520,
+    320
    ],
    "flags": {},
-   "order": 6,
+   "order": 7,
    "mode": 0,
    "inputs": [
     {
-     "name": "images",
-     "type": "IMAGE",
+     "name": "source",
+     "type": "*",
      "link": 6
     }
    ],
    "outputs": [],
    "properties": {
-    "Node name for S&R": "PreviewImage"
+    "Node name for S&R": "PreviewAny"
    },
-   "title": "Outfits"
+   "title": "Personality"
   },
   {
-   "id": 9,
-   "type": "COFImages",
+   "id": 12,
+   "type": "COFAppearance",
    "pos": [
     1240,
-    820
+    900
    ],
    "size": [
     380,
-    250
+    230
    ],
    "flags": {},
-   "order": 7,
+   "order": 8,
    "mode": 0,
    "inputs": [
     {
@@ -304,37 +318,34 @@
     {
      "name": "labels",
      "type": "STRING",
-     "links": [
-      9
-     ],
+     "links": [],
      "slot_index": 2
     }
    ],
    "properties": {
-    "Node name for S&R": "COFImages"
+    "Node name for S&R": "COFAppearance"
    },
    "widgets_values": [
-    "environment",
-    false,
+    "clothing",
+    true,
+    "mosaic_all",
     "any",
-    "any",
-    "image_001"
-   ],
-   "title": "COF Images: one place"
+    "any"
+   ]
   },
   {
-   "id": 10,
+   "id": 13,
    "type": "PreviewImage",
    "pos": [
     1800,
-    820
+    900
    ],
    "size": [
-    320,
-    260
+    440,
+    380
    ],
    "flags": {},
-   "order": 8,
+   "order": 9,
    "mode": 0,
    "inputs": [
     {
@@ -346,46 +357,18 @@
    "outputs": [],
    "properties": {
     "Node name for S&R": "PreviewImage"
-   },
-   "title": "Place"
+   }
   },
   {
-   "id": 8,
-   "type": "PreviewAny",
-   "pos": [
-    1800,
-    1110
-   ],
-   "size": [
-    420,
-    130
-   ],
-   "flags": {},
-   "order": 9,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "source",
-     "type": "*",
-     "link": 9
-    }
-   ],
-   "outputs": [],
-   "properties": {
-    "Node name for S&R": "PreviewAny"
-   },
-   "title": "Places: labels"
-  },
-  {
-   "id": 11,
-   "type": "COFImages",
+   "id": 20,
+   "type": "COFAppearance",
    "pos": [
     0,
-    1300
+    1340
    ],
    "size": [
     380,
-    250
+    230
    ],
    "flags": {},
    "order": 10,
@@ -394,7 +377,7 @@
     {
      "name": "cof",
      "type": "COF",
-     "link": 10
+     "link": 9
     }
    ],
    "outputs": [
@@ -402,7 +385,7 @@
      "name": "images",
      "type": "IMAGE",
      "links": [
-      11
+      10
      ],
      "slot_index": 0
     },
@@ -415,32 +398,33 @@
     {
      "name": "labels",
      "type": "STRING",
-     "links": [],
+     "links": [
+      11
+     ],
      "slot_index": 2
     }
    ],
    "properties": {
-    "Node name for S&R": "COFImages"
+    "Node name for S&R": "COFAppearance"
    },
    "widgets_values": [
-    "posture",
-    false,
+    "environment",
+    true,
+    "image_001",
     "any",
-    "any",
-    "mosaic_all"
-   ],
-   "title": "COF Images: poses"
+    "any"
+   ]
   },
   {
-   "id": 12,
+   "id": 21,
    "type": "PreviewImage",
    "pos": [
     560,
-    1300
+    1340
    ],
    "size": [
     440,
-    360
+    260
    ],
    "flags": {},
    "order": 11,
@@ -449,28 +433,54 @@
     {
      "name": "images",
      "type": "IMAGE",
-     "link": 11
+     "link": 10
     }
    ],
    "outputs": [],
    "properties": {
     "Node name for S&R": "PreviewImage"
-   },
-   "title": "Poses"
+   }
   },
   {
-   "id": 13,
-   "type": "COFVoice",
+   "id": 22,
+   "type": "PreviewAny",
+   "pos": [
+    560,
+    1630
+   ],
+   "size": [
+    520,
+    130
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 11
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Labels"
+  },
+  {
+   "id": 23,
+   "type": "COF3D",
    "pos": [
     1240,
-    1300
+    1340
    ],
    "size": [
     380,
     110
    ],
    "flags": {},
-   "order": 12,
+   "order": 13,
    "mode": 0,
    "inputs": [
     {
@@ -481,10 +491,87 @@
    ],
    "outputs": [
     {
+     "name": "paths",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 0
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [
+      13
+     ],
+     "slot_index": 1
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COF3D"
+   },
+   "widgets_values": [
+    "all"
+   ]
+  },
+  {
+   "id": 24,
+   "type": "PreviewAny",
+   "pos": [
+    1800,
+    1340
+   ],
+   "size": [
+    440,
+    160
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 13
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "3D: labels"
+  },
+  {
+   "id": 30,
+   "type": "COFVoice",
+   "pos": [
+    0,
+    1800
+   ],
+   "size": [
+    380,
+    110
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 14
+    }
+   ],
+   "outputs": [
+    {
      "name": "audio",
      "type": "AUDIO",
      "links": [
-      13
+      15
      ],
      "slot_index": 0
     },
@@ -492,7 +579,7 @@
      "name": "transcript",
      "type": "STRING",
      "links": [
-      14
+      16
      ],
      "slot_index": 1
     },
@@ -511,113 +598,44 @@
    ]
   },
   {
-   "id": 14,
+   "id": 31,
    "type": "PreviewAudio",
    "pos": [
-    1800,
-    1300
+    560,
+    1800
    ],
    "size": [
-    420,
+    520,
     120
    ],
    "flags": {},
-   "order": 13,
+   "order": 16,
    "mode": 0,
    "inputs": [
     {
      "name": "audio",
      "type": "AUDIO",
-     "link": 13
+     "link": 15
     }
    ],
    "outputs": [],
    "properties": {
     "Node name for S&R": "PreviewAudio"
-   },
-   "title": "Voice"
-  },
-  {
-   "id": 15,
-   "type": "PreviewAny",
-   "pos": [
-    1800,
-    1450
-   ],
-   "size": [
-    420,
-    150
-   ],
-   "flags": {},
-   "order": 14,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "source",
-     "type": "*",
-     "link": 14
-    }
-   ],
-   "outputs": [],
-   "properties": {
-    "Node name for S&R": "PreviewAny"
-   },
-   "title": "Voice: transcript"
-  },
-  {
-   "id": 16,
-   "type": "COFPersona",
-   "pos": [
-    0,
-    1740
-   ],
-   "size": [
-    380,
-    80
-   ],
-   "flags": {},
-   "order": 15,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "cof",
-     "type": "COF",
-     "link": 15
-    }
-   ],
-   "outputs": [
-    {
-     "name": "persona",
-     "type": "STRING",
-     "links": [
-      16
-     ],
-     "slot_index": 0
-    },
-    {
-     "name": "language",
-     "type": "STRING",
-     "links": [],
-     "slot_index": 1
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "COFPersona"
    }
   },
   {
-   "id": 17,
+   "id": 32,
    "type": "PreviewAny",
    "pos": [
     560,
-    1740
+    1950
    ],
    "size": [
     520,
-    320
+    150
    ],
    "flags": {},
-   "order": 16,
+   "order": 17,
    "mode": 0,
    "inputs": [
     {
@@ -630,27 +648,105 @@
    "properties": {
     "Node name for S&R": "PreviewAny"
    },
-   "title": "Persona text"
+   "title": "Transcript"
   },
   {
-   "id": 18,
-   "type": "COFMotion3D",
+   "id": 33,
+   "type": "COFPostures",
    "pos": [
     1240,
-    1740
+    1800
    ],
    "size": [
     380,
-    110
+    150
    ],
    "flags": {},
-   "order": 17,
+   "order": 18,
    "mode": 0,
    "inputs": [
     {
      "name": "cof",
      "type": "COF",
      "link": 17
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": [
+      18
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 2
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFPostures"
+   },
+   "widgets_values": [
+    "all",
+    true,
+    "mosaic_all"
+   ]
+  },
+  {
+   "id": 34,
+   "type": "PreviewImage",
+   "pos": [
+    1800,
+    1800
+   ],
+   "size": [
+    440,
+    360
+   ],
+   "flags": {},
+   "order": 19,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 18
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   }
+  },
+  {
+   "id": 40,
+   "type": "COFMotion",
+   "pos": [
+    0,
+    2240
+   ],
+   "size": [
+    380,
+    110
+   ],
+   "flags": {},
+   "order": 20,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 19
     }
    ],
    "outputs": [
@@ -664,7 +760,7 @@
      "name": "labels",
      "type": "STRING",
      "links": [
-      18
+      20
      ],
      "slot_index": 1
     },
@@ -676,63 +772,122 @@
     }
    ],
    "properties": {
-    "Node name for S&R": "COFMotion3D"
+    "Node name for S&R": "COFMotion"
    },
    "widgets_values": [
-    "motion clips",
     "all"
    ]
   },
   {
-   "id": 19,
+   "id": 41,
    "type": "PreviewAny",
    "pos": [
-    1800,
-    1740
+    560,
+    2240
    ],
    "size": [
-    420,
+    520,
     240
    ],
    "flags": {},
-   "order": 18,
+   "order": 21,
    "mode": 0,
    "inputs": [
     {
      "name": "source",
      "type": "*",
-     "link": 18
+     "link": 20
     }
    ],
    "outputs": [],
    "properties": {
     "Node name for S&R": "PreviewAny"
    },
-   "title": "Motion clips: labels"
+   "title": "Motion: labels"
   },
   {
-   "id": 20,
-   "type": "Note",
+   "id": 42,
+   "type": "COFFiles",
    "pos": [
-    0,
-    500
+    1240,
+    2240
    ],
    "size": [
-    1420,
-    220
+    380,
+    130
    ],
    "flags": {},
-   "order": 19,
+   "order": 22,
    "mode": 0,
-   "inputs": [],
-   "outputs": [],
-   "properties": {},
-   "widgets_values": [
-    "• The nodes below are a fixed template: they do NOT appear or disappear with the file's content. Only the dropdown lists follow the loaded file, preset and character.\n• Another kind of image (body, hair, clothing, environment, posture…): change \"kind\" in a COF Images node. It lists only the kinds this preset has, with their number of images.\n• Two kinds side by side: double-click an empty spot → type \"COF Images\" → Enter; drag the \"cof\" output of COF Load Character to its \"cof\" input; drag its \"images\" output → \"Preview Image\"; Run. Same for COF Voice, COF Persona Text, COF Motion & 3D Files.\n• \"pick\": mosaic_all = every image (24 at most; beyond, mosaic_page_1, _2…); image_001… = one image.\n• A preset without some kind (no voice, no clothing, no pose…) gives silence or a blank image and says so in the labels: the run goes on.\n• After changing the file or the character, check each \"kind\": a node keeps its kind (shown \"— 0 images\" if this preset has none).\nMore: github.com/yannsouetre/ComfyUI-COF"
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 21
+    }
    ],
-   "title": "Read me — how this workflow works",
-   "color": "#0f6b5c",
-   "bgcolor": "#18201f"
+   "outputs": [
+    {
+     "name": "text",
+     "type": "STRING",
+     "links": [
+      22
+     ],
+     "slot_index": 0
+    },
+    {
+     "name": "paths",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 1
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [],
+     "slot_index": 2
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": [],
+     "slot_index": 3
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFFiles"
+   },
+   "widgets_values": [
+    "all",
+    "all"
+   ]
+  },
+  {
+   "id": 43,
+   "type": "PreviewAny",
+   "pos": [
+    1800,
+    2240
+   ],
+   "size": [
+    440,
+    320
+   ],
+   "flags": {},
+   "order": 23,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 22
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Files: text"
   }
  ],
  "links": [
@@ -772,95 +927,95 @@
    5,
    1,
    0,
-   6,
-   0,
-   "COF"
-  ],
-  [
-   6,
-   6,
-   0,
-   7,
-   0,
-   "IMAGE"
-  ],
-  [
-   7,
-   1,
-   0,
-   9,
-   0,
-   "COF"
-  ],
-  [
-   8,
-   9,
-   0,
    10,
    0,
-   "IMAGE"
+   "COF"
   ],
   [
-   9,
-   9,
-   2,
-   8,
+   6,
+   10,
+   0,
+   11,
    0,
    "STRING"
   ],
   [
-   10,
+   7,
    1,
    0,
-   11,
+   12,
    0,
    "COF"
   ],
   [
-   11,
-   11,
-   0,
+   8,
    12,
+   0,
+   13,
    0,
    "IMAGE"
   ],
   [
+   9,
+   1,
+   0,
+   20,
+   0,
+   "COF"
+  ],
+  [
+   10,
+   20,
+   0,
+   21,
+   0,
+   "IMAGE"
+  ],
+  [
+   11,
+   20,
+   2,
+   22,
+   0,
+   "STRING"
+  ],
+  [
    12,
    1,
    0,
-   13,
+   23,
    0,
    "COF"
   ],
   [
    13,
-   13,
+   23,
+   1,
+   24,
    0,
+   "STRING"
+  ],
+  [
    14,
+   1,
+   0,
+   30,
+   0,
+   "COF"
+  ],
+  [
+   15,
+   30,
+   0,
+   31,
    0,
    "AUDIO"
   ],
   [
-   14,
-   13,
+   16,
+   30,
    1,
-   15,
-   0,
-   "STRING"
-  ],
-  [
-   15,
-   1,
-   0,
-   16,
-   0,
-   "COF"
-  ],
-  [
-   16,
-   16,
-   0,
-   17,
+   32,
    0,
    "STRING"
   ],
@@ -868,15 +1023,47 @@
    17,
    1,
    0,
-   18,
+   33,
    0,
    "COF"
   ],
   [
    18,
-   18,
-   1,
+   33,
+   0,
+   34,
+   0,
+   "IMAGE"
+  ],
+  [
    19,
+   1,
+   0,
+   40,
+   0,
+   "COF"
+  ],
+  [
+   20,
+   40,
+   1,
+   41,
+   0,
+   "STRING"
+  ],
+  [
+   21,
+   1,
+   0,
+   42,
+   0,
+   "COF"
+  ],
+  [
+   22,
+   42,
+   0,
+   43,
    0,
    "STRING"
   ]
@@ -894,12 +1081,12 @@
    "font_size": 24
   },
   {
-   "title": "More from the same preset",
+   "title": "One node per category of the COF builder",
    "bounding": [
     -20,
-    760,
-    2260,
-    1360
+    840,
+    2300,
+    1780
    ],
    "color": "#2a3533",
    "font_size": 24

@@ -24,6 +24,7 @@ ADULT = 18
 AGE_CATS = {"appearance", "volume3d", "identity_weights"}
 AGELESS = {"clothing", "accessory", "feature", "description", "environment"}
 REF_KINDS = ("face", "reference-set", "character-sheet", "body")
+TEXT_EXT = (".md", ".txt", ".json", ".yaml", ".yml", ".csv")       # files of the Files category that may be read or extracted
 
 
 class COFError(ValueError):
@@ -274,13 +275,15 @@ class COF:
         return None
 
     # ---------- what nodes output ----------
-    def images(self, pid: str, kinds=None, include_offered=False, allow_intimate=False, subject="", angle="") -> list[str]:
+    def images(self, pid: str, kinds=None, include_offered=False, allow_intimate=False, subject="", angle="", cats=None) -> list[str]:
         lists = [self.slots(pid)] + ([self.offered(pid)] if include_offered else [])
         ok_intimate = self.intimate_allowed(pid, allow_intimate)
         ok_nudity = self.nudity_allowed(pid, allow_intimate)
         out = []
         for lst in lists:
             for cat, vs in self.resolved(lst).items():
+                if cats and cat not in cats:
+                    continue
                 for v in vs:
                     k = v.get("kind")
                     if k == "intimate" and not ok_intimate:
@@ -403,18 +406,46 @@ class COF:
                 out.append(v["text"].strip())
         return "\n\n".join(out), ", ".join(dict.fromkeys(langs))
 
-    def media(self, pid: str, cat: str) -> list[dict]:
-        """Motion clips (cat 'motion') or 3D files (cat 'volume3d') applied by the preset: [{label, asset or path}]."""
+    def media(self, pid: str, cat: str, kinds=None) -> list[dict]:
+        """Files of the preset's variants in one category — motion clips ('motion'), 3D files ('volume3d') or agent
+        files ('files': skills, memories, documents): [{label, kind, variant, asset or path, rel}]."""
         out = []
         for v in self.resolved(self.slots(pid)).get(cat, []):
+            k = v.get("kind", "")
+            if kinds and k not in kinds:
+                continue
             lab = english(v.get("label") or v["_id"])
             for aid in (v.get("clips") or []) + (v.get("files") or []):
                 a = self.assets.get(aid) or {}
-                if a.get("path") and a["path"].lower().endswith(EXTRACTABLE):
-                    out.append({"label": f"{lab} · {Path(a['path']).stem}", "asset": aid})
+                rel = a.get("path") or ""
+                ok = rel.lower().endswith(TEXT_EXT if cat == "files" else EXTRACTABLE)
+                if rel and (ok or cat == "files"):
+                    shown = rel.split(f"/{v['_id']}/", 1)[-1] if cat == "files" else Path(rel).stem
+                    out.append({"label": f"{lab} · {shown}" + ("" if ok else " (not extracted: not a text file)"),
+                                "kind": k, "variant": v["_id"], "asset": aid if ok else None, "rel": rel})
             rel = v.get("path") or (v.get("mesh") or {}).get("path")
-            if rel and rel.lower().endswith(EXTRACTABLE) and rel in self.zip.namelist():
-                out.append({"label": f"{lab} · {Path(rel).stem}", "path": rel})
+            if cat != "files" and rel and rel.lower().endswith(EXTRACTABLE) and rel in self.zip.namelist():
+                out.append({"label": f"{lab} · {Path(rel).stem}", "kind": k, "variant": v["_id"], "path": rel, "rel": rel})
+        return out
+
+    def read_text(self, aid: str) -> str:
+        a = self.assets.get(aid) or {}
+        rel = a.get("path") or ""
+        if not rel.lower().endswith(TEXT_EXT):
+            raise COFError(f"refusing to read {rel}: only text files (.md, .txt, .json, .yaml, .csv) are read")
+        return self.read(rel).decode("utf-8", errors="replace")
+
+    def extract_text_file(self, aid: str, variant: str, dest_root: Path) -> Path:
+        """Writes a text file of the Files category under dest_root/<variant>/<its path inside the variant>,
+        so a skill keeps its layout (SKILL.md, reference/…); never a script."""
+        a = self.assets.get(aid) or {}
+        rel = a.get("path") or ""
+        if not rel.lower().endswith(TEXT_EXT):
+            raise COFError(f"refusing to extract {rel}: only text files are extracted from the Files category")
+        sub = [x for x in rel.split(f"/{variant}/", 1)[-1].split("/") if x not in ("", ".", "..")]
+        out = dest_root.joinpath(re.sub(r"[^A-Za-z0-9_.-]", "", variant) or "files", *sub)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(self.read(rel))
         return out
 
     def extract_path(self, rel: str, dest_dir: Path) -> Path:
