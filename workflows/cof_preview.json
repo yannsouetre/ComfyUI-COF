@@ -188,7 +188,7 @@
    "type": "COFImages",
    "pos": [
     0,
-    540
+    820
    ],
    "size": [
     380,
@@ -243,7 +243,7 @@
    "type": "PreviewImage",
    "pos": [
     560,
-    540
+    820
    ],
    "size": [
     440,
@@ -270,7 +270,7 @@
    "type": "COFImages",
    "pos": [
     1240,
-    540
+    820
    ],
    "size": [
     380,
@@ -327,7 +327,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    540
+    820
    ],
    "size": [
     320,
@@ -354,7 +354,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    830
+    1110
    ],
    "size": [
     420,
@@ -381,7 +381,7 @@
    "type": "COFImages",
    "pos": [
     0,
-    1020
+    1300
    ],
    "size": [
     380,
@@ -436,7 +436,7 @@
    "type": "PreviewImage",
    "pos": [
     560,
-    1020
+    1300
    ],
    "size": [
     440,
@@ -463,7 +463,7 @@
    "type": "COFVoice",
    "pos": [
     1240,
-    1020
+    1300
    ],
    "size": [
     380,
@@ -515,7 +515,7 @@
    "type": "PreviewAudio",
    "pos": [
     1800,
-    1020
+    1300
    ],
    "size": [
     420,
@@ -542,7 +542,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    1170
+    1450
    ],
    "size": [
     420,
@@ -569,7 +569,7 @@
    "type": "COFPersona",
    "pos": [
     0,
-    1460
+    1740
    ],
    "size": [
     380,
@@ -610,7 +610,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1460
+    1740
    ],
    "size": [
     520,
@@ -637,7 +637,7 @@
    "type": "COFMotion3D",
    "pos": [
     1240,
-    1460
+    1740
    ],
    "size": [
     380,
@@ -688,7 +688,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    1460
+    1740
    ],
    "size": [
     420,
@@ -714,12 +714,12 @@
    "id": 20,
    "type": "Note",
    "pos": [
-    -520,
-    -60
+    0,
+    500
    ],
    "size": [
-    460,
-    640
+    1420,
+    220
    ],
    "flags": {},
    "order": 19,
@@ -728,9 +728,9 @@
    "outputs": [],
    "properties": {},
    "widgets_values": [
-    "READ ME — how this workflow works\n\n1. Choose a .cof in \"COF Load Character\" (or drop one on it), then a preset and a character. Run.\n\n2. The nodes are a fixed template. They do NOT appear or disappear with the file's content: a preset with hair or body images does not add nodes by itself. Only the dropdown lists follow the loaded file and preset.\n\n3. To see another kind of image (body, hair, clothing, environment…), change the \"kind\" list of a \"COF Images\" node. It lists only the kinds this preset has, with their number of images.\n\n4. To see two kinds side by side, add a node:\n   • double-click an empty spot of the canvas, type \"COF Images\", press Enter;\n   • drag from the \"cof\" output of \"COF Load Character\" to the \"cof\" input of the new node;\n   • drag from its \"images\" output and choose \"Preview Image\";\n   • Run.\n   The same works for \"COF Voice\", \"COF Persona Text\" and \"COF Motion & 3D Files\".\n\n5. \"pick\": mosaic_all shows every image (24 at most; beyond, mosaic_page_1, _2…), image_001… shows one.\n\n6. A preset without some kind (no voice, no clothing…) gives silence or a blank image and says so in the labels: the run goes on.\n\nGuide: github.com/yannsouetre/ComfyUI-COF"
+    "• The nodes below are a fixed template: they do NOT appear or disappear with the file's content. Only the dropdown lists follow the loaded file, preset and character.\n• Another kind of image (body, hair, clothing, environment, posture…): change \"kind\" in a COF Images node. It lists only the kinds this preset has, with their number of images.\n• Two kinds side by side: double-click an empty spot → type \"COF Images\" → Enter; drag the \"cof\" output of COF Load Character to its \"cof\" input; drag its \"images\" output → \"Preview Image\"; Run. Same for COF Voice, COF Persona Text, COF Motion & 3D Files.\n• \"pick\": mosaic_all = every image (24 at most; beyond, mosaic_page_1, _2…); image_001… = one image.\n• A preset without some kind (no voice, no clothing, no pose…) gives silence or a blank image and says so in the labels: the run goes on.\n• After changing the file or the character, check each \"kind\": a node keeps its kind (shown \"— 0 images\" if this preset has none).\nMore: github.com/yannsouetre/ComfyUI-COF"
    ],
-   "title": "Read me",
+   "title": "Read me — how this workflow works",
    "color": "#0f6b5c",
    "bgcolor": "#18201f"
   }
@@ -897,7 +897,7 @@
    "title": "More from the same preset",
    "bounding": [
     -20,
-    480,
+    760,
     2260,
     1360
    ],
@@ -910,8 +910,8 @@
   "ds": {
    "scale": 0.55,
    "offset": [
-    560,
-    120
+    60,
+    80
    ]
   }
  },

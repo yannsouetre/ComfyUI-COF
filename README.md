@@ -51,7 +51,7 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 
 ## Using the preview workflow
 
-The workflow opens with a **Read me** note on the left that sums this up.
+The workflow opens with a **Read me** note, under the loader, that sums this up.
 
 - **The nodes are a fixed template.** They do not appear or disappear with the file's content: a preset with hair or body images adds no node by itself. Only the **dropdown lists** follow the loaded file and preset.
 - **Another kind of image** (body, hair, clothing, environment…): change the `kind` list of a **COF Images** node. It lists only the kinds the preset has, with their number of images.
