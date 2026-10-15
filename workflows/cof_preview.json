@@ -1,5 +1,5 @@
 {
- "last_node_id": 19,
+ "last_node_id": 20,
  "last_link_id": 18,
  "nodes": [
   {
@@ -709,6 +709,30 @@
     "Node name for S&R": "PreviewAny"
    },
    "title": "Motion clips: labels"
+  },
+  {
+   "id": 20,
+   "type": "Note",
+   "pos": [
+    -520,
+    -60
+   ],
+   "size": [
+    460,
+    640
+   ],
+   "flags": {},
+   "order": 19,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "READ ME — how this workflow works\n\n1. Choose a .cof in \"COF Load Character\" (or drop one on it), then a preset and a character. Run.\n\n2. The nodes are a fixed template. They do NOT appear or disappear with the file's content: a preset with hair or body images does not add nodes by itself. Only the dropdown lists follow the loaded file and preset.\n\n3. To see another kind of image (body, hair, clothing, environment…), change the \"kind\" list of a \"COF Images\" node. It lists only the kinds this preset has, with their number of images.\n\n4. To see two kinds side by side, add a node:\n   • double-click an empty spot of the canvas, type \"COF Images\", press Enter;\n   • drag from the \"cof\" output of \"COF Load Character\" to the \"cof\" input of the new node;\n   • drag from its \"images\" output and choose \"Preview Image\";\n   • Run.\n   The same works for \"COF Voice\", \"COF Persona Text\" and \"COF Motion & 3D Files\".\n\n5. \"pick\": mosaic_all shows every image (24 at most; beyond, mosaic_page_1, _2…), image_001… shows one.\n\n6. A preset without some kind (no voice, no clothing…) gives silence or a blank image and says so in the labels: the run goes on.\n\nGuide: github.com/yannsouetre/ComfyUI-COF"
+   ],
+   "title": "Read me",
+   "color": "#0f6b5c",
+   "bgcolor": "#18201f"
   }
  ],
  "links": [
@@ -886,8 +910,8 @@
   "ds": {
    "scale": 0.55,
    "offset": [
-    60,
-    80
+    560,
+    120
    ]
   }
  },

@@ -49,6 +49,23 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 
    `workflows/cof_txt2img_api.json` adds a checkpoint, the file's LoRA (if any) and a sampler; choose your checkpoint first.
 
+## Using the preview workflow
+
+The workflow opens with a **Read me** note on the left that sums this up.
+
+- **The nodes are a fixed template.** They do not appear or disappear with the file's content: a preset with hair or body images adds no node by itself. Only the **dropdown lists** follow the loaded file and preset.
+- **Another kind of image** (body, hair, clothing, environment…): change the `kind` list of a **COF Images** node. It lists only the kinds the preset has, with their number of images.
+- **Two kinds side by side**: add a node.
+  1. Double-click an empty spot of the canvas, type `COF Images`, press Enter.
+  2. Drag from the `cof` output of **COF Load Character** to the `cof` input of the new node.
+  3. Drag from its `images` output and choose **Preview Image**.
+  4. Run.
+
+  The same works for **COF Voice**, **COF Persona Text** and **COF Motion & 3D Files**.
+- **`pick`**: `mosaic_all` shows every matching image (24 at most; beyond 24 the list offers `mosaic_page_1`, `mosaic_page_2`…); `image_001`… shows one image.
+- **Missing kinds**: a preset without voice or without some kind of image gives one second of silence or a blank image, and says so in the labels. The run goes on.
+- **One environment element is one place**, possibly in several framings (desktop and mobile, angles); a preset can have several places, each in its own element.
+
 ## Tests (outside ComfyUI)
 
 ```bash
@@ -62,7 +79,7 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
-- **0.4.0** — the kind list shows only the kinds the preset has, with counts (the node keeps its own kind, even at 0); a preset without a voice gives one second of silence instead of stopping the run; image labels show size and orientation; the prompt leaves out the summary for a preset of another age; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
+- **0.4.0** — the kind list shows only the kinds the preset has, with counts (the node keeps its own kind, even at 0); a preset without a voice gives one second of silence instead of stopping the run; image labels show size and orientation; the prompt leaves out the summary for a preset of another age; the preview workflow opens with a Read me note; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
 - **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
 - **0.1.0** — first version.
