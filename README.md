@@ -64,7 +64,7 @@ The workflow opens with a **Read me** note on the left that sums this up.
   The same works for **COF Voice**, **COF Persona Text** and **COF Motion & 3D Files**.
 - **`pick`**: `mosaic_all` shows every matching image (24 at most; beyond 24 the list offers `mosaic_page_1`, `mosaic_page_2`…); `image_001`… shows one image.
 - **Missing kinds**: a preset without voice or without some kind of image gives one second of silence or a blank image, and says so in the labels. The run goes on.
-- **One environment element is one place**, possibly in several framings (desktop and mobile, angles); a preset can have several places, each in its own element.
+- **One variant = a consistent set of one thing**: one place for an environment (several framings: desktop and mobile, angles), one garment, one hairstyle… A preset can have several places, each in its own variant. Only a reference set (loose photos) mixes things.
 
 ## Tests (outside ComfyUI)
 
