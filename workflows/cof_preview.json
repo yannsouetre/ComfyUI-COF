@@ -194,7 +194,7 @@
    ],
    "size": [
     2240,
-    560
+    320
    ],
    "flags": {},
    "order": 5,
@@ -217,7 +217,7 @@
    "type": "COFPersonality",
    "pos": [
     0,
-    1130
+    890
    ],
    "size": [
     380,
@@ -258,7 +258,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1130
+    890
    ],
    "size": [
     520,
@@ -285,7 +285,7 @@
    "type": "COFAppearance",
    "pos": [
     1240,
-    1130
+    890
    ],
    "size": [
     380,
@@ -339,7 +339,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    1130
+    890
    ],
    "size": [
     440,
@@ -365,7 +365,7 @@
    "type": "COFAppearance",
    "pos": [
     0,
-    1570
+    1330
    ],
    "size": [
     380,
@@ -421,7 +421,7 @@
    "type": "PreviewImage",
    "pos": [
     560,
-    1570
+    1330
    ],
    "size": [
     440,
@@ -447,7 +447,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1860
+    1620
    ],
    "size": [
     520,
@@ -474,7 +474,7 @@
    "type": "COF3D",
    "pos": [
     1240,
-    1570
+    1330
    ],
    "size": [
     380,
@@ -524,7 +524,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    1570
+    1330
    ],
    "size": [
     440,
@@ -551,7 +551,7 @@
    "type": "COFVoice",
    "pos": [
     0,
-    2030
+    1790
    ],
    "size": [
     380,
@@ -603,7 +603,7 @@
    "type": "PreviewAudio",
    "pos": [
     560,
-    2030
+    1790
    ],
    "size": [
     520,
@@ -629,7 +629,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    2180
+    1940
    ],
    "size": [
     520,
@@ -656,7 +656,7 @@
    "type": "COFPostures",
    "pos": [
     1240,
-    2030
+    1790
    ],
    "size": [
     380,
@@ -708,7 +708,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    2030
+    1790
    ],
    "size": [
     440,
@@ -734,7 +734,7 @@
    "type": "COFMotion",
    "pos": [
     0,
-    2470
+    2230
    ],
    "size": [
     380,
@@ -784,7 +784,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    2470
+    2230
    ],
    "size": [
     520,
@@ -811,7 +811,7 @@
    "type": "COFFiles",
    "pos": [
     1240,
-    2470
+    2230
    ],
    "size": [
     380,
@@ -868,7 +868,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    2470
+    2230
    ],
    "size": [
     440,
@@ -1085,7 +1085,7 @@
    "title": "One node per category of the COF builder",
    "bounding": [
     -20,
-    1070,
+    830,
     2300,
     1780
    ],
