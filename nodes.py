@@ -123,9 +123,20 @@ def _select(items: list, pick: str, what: str = "image"):
 
 
 def _image_ids(c: COF, pid: str, kind: str, include_offered: bool, allow_intimate: bool, subject: str, angle: str) -> list[str]:
+    kind = _token(kind)                  # "clothing — 4 images" → "clothing"
     kinds = None if kind == "all" else set(REF_KINDS) if kind.startswith("references") else {kind}
     return c.images(pid, kinds=kinds, include_offered=include_offered, allow_intimate=allow_intimate,
                     subject="" if subject == "any" else subject, angle="" if angle == "any" else angle)
+
+
+def _kind_choices(c: COF, pid: str, include_offered: bool, allow_intimate: bool) -> list[str]:
+    """The kinds of images this preset really has, with their counts; "references" and "all" always come first."""
+    out = []
+    for k in KIND_CHOICES:
+        n = len(_image_ids(c, pid, k, include_offered, allow_intimate, "any", "any"))
+        if n or k in KIND_CHOICES[:2]:
+            out.append(f"{k}{SEP}{n} image{'s' if n != 1 else ''}")
+    return out
 
 
 def _voice_samples(c: COF, pid: str) -> list[tuple[str, dict]]:
@@ -215,7 +226,7 @@ class COFImages:
     def INPUT_TYPES(cls):
         return {"required": {
             "cof": ("COF",),
-            "kind": (KIND_CHOICES,),
+            "kind": (KIND_CHOICES, {"tooltip": "the kinds of images this preset has, with their counts"}),
             "include_offered": ("BOOLEAN", {"default": False, "tooltip": "also the outfits, accessories… offered with this preset"}),
             "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
             "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
@@ -224,8 +235,8 @@ class COFImages:
         }}
 
     @classmethod
-    def VALIDATE_INPUTS(cls, pick):
-        return True                      # the list is filled per file by web/cof.js
+    def VALIDATE_INPUTS(cls, kind, pick):
+        return True                      # both lists are filled per file by web/cof.js
 
     RETURN_TYPES = ("IMAGE", "INT", "STRING")
     RETURN_NAMES = ("images", "count", "labels")
@@ -459,7 +470,9 @@ def _routes():
             c = _open(name)
             pid = c.find_preset(_pick(q.get("preset", "")), _pick(q.get("character", "")))
             node = q.get("node", "")
-            if node == "images":
+            if node == "kinds":
+                values = _kind_choices(c, pid, q.get("offered") == "true", q.get("allow") == "true")
+            elif node == "images":
                 aids = _image_ids(c, pid, q.get("kind", "all"), q.get("offered") == "true", q.get("allow") == "true",
                                   q.get("subject", "any"), q.get("angle", "any"))
                 values = _image_choices([c.image_label(a) for a in aids])

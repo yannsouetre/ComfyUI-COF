@@ -55,8 +55,8 @@ async function refreshLoader(node) {
 }
 
 const PICKERS = {
-  COFImages: { widget: "pick", node: "images", params: n => ({
-    kind: W(n, "kind")?.value, offered: W(n, "include_offered")?.value ? "true" : "false",
+  COFImages: { widget: "pick", node: "images", kinds: true, params: n => ({
+    kind: token(W(n, "kind")?.value), offered: W(n, "include_offered")?.value ? "true" : "false",
     subject: W(n, "subject")?.value, angle: W(n, "angle")?.value }), watch: ["kind", "include_offered", "subject", "angle"] },
   COFVoice: { widget: "sample", node: "voice", params: () => ({}), watch: [] },
   COFMotion3D: { widget: "pick", node: "media", params: n => ({ what: W(n, "what")?.value }), watch: ["what"] },
@@ -65,10 +65,15 @@ const PICKERS = {
 async function refreshPicker(node) {
   const spec = PICKERS[node.comfyClass], src = sourceLoader(node);
   if (!spec || !src) return;
-  const q = new URLSearchParams({
-    node: spec.node, file: W(src, "cof_file")?.value ?? "", preset: W(src, "preset")?.value ?? "",
-    character: W(src, "character")?.value ?? "", allow: W(src, "allow_intimate")?.value ? "true" : "false",
-    ...spec.params(node) });
+  const base = {
+    file: W(src, "cof_file")?.value ?? "", preset: W(src, "preset")?.value ?? "",
+    character: W(src, "character")?.value ?? "", allow: W(src, "allow_intimate")?.value ? "true" : "false" };
+  if (spec.kinds) {                       // first the kinds this preset really has, with their counts
+    const k = await getJSON(`/cof/choices?${new URLSearchParams({ node: "kinds", ...base,
+      offered: W(node, "include_offered")?.value ? "true" : "false" })}`);
+    if (k?.values) setValues(W(node, "kind"), k.values);
+  }
+  const q = new URLSearchParams({ node: spec.node, ...base, ...spec.params(node) });
   const d = await getJSON(`/cof/choices?${q}`);
   if (d?.values) { setValues(W(node, spec.widget), d.values); node.setDirtyCanvas?.(true, true); }
 }

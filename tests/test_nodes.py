@@ -79,7 +79,7 @@ def test_dropdown_values_and_index(pack):
     d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "(default)", "(default)", 256)[0]
     allimg, n, labels = nodes.COFImages().pick_images(d, "environment", False, "any", "any")
     assert n == 2 and allimg.shape[0] == 2 and labels.splitlines()[1].startswith("image_002: ") and "mobile" in labels
-    one, n2, _ = nodes.COFImages().pick_images(d, "environment", False, "any", "any", "image_002 — Bright studio")
+    one, n2, _ = nodes.COFImages().pick_images(d, "environment — 2 images", False, "any", "any", "image_002 — Bright studio")
     assert n2 == 2 and one.shape[0] == 1
 
 
@@ -138,6 +138,12 @@ def test_routes_fill_the_dropdowns(pack, monkeypatch):
     assert st == 200 and any(p["value"].startswith("en-65 — ") for p in d["presets"])
     st, d = call("/cof/choices", node="images", file=clara, preset="(default)", character="(default)", kind="environment", offered="false", subject="any", angle="any", allow="false")
     assert st == 200 and d["values"][0] == "mosaic_all — 2 images" and d["values"][2].startswith("image_002 — ")
+    st, d = call("/cof/choices", node="kinds", file=clara, preset="(default)", offered="true", allow="false")
+    toks = [v.split(" — ")[0] for v in d["values"]]
+    assert toks[:2] == ["references (face, reference set, sheet, body)", "all"] and "clothing" in toks and "intimate" not in toks
+    assert all(" — " in v and "image" in v for v in d["values"])
+    st, d = call("/cof/choices", node="images", file=clara, preset="(default)", kind="environment — 2 images", offered="false", subject="any", angle="any", allow="false")
+    assert d["values"][0] == "mosaic_all — 2 images"
     st, d = call("/cof/choices", node="voice", file=clara, preset="fr")
     assert d["values"][0].startswith("sample_001 — ") and "[fr]" in d["values"][0]
     st, d = call("/cof/choices", node="media", file=clara, preset="", what="motion clips")

@@ -17,7 +17,7 @@ A **COF (Character Open File)** `.cof` packs a whole AI character — reference 
 | Node | Inputs | Outputs |
 |---|---|---|
 | **COF Load Character** (simple — enough for most workflows) | `.cof` file, **preset** and **character** dropdowns (filled from the selected file), max size | `cof`, primary image, reference images, prompt, info |
-| COF Images (advanced) | `cof`, kind (clothing, accessory, environment, posture…), include offered, subject, angle, **pick** (a dropdown of the matching images by name) | images, count, labels |
+| COF Images (advanced) | `cof`, **kind** (only the kinds the preset has, with their counts: clothing — 4 images, posture — 3 images…), include offered, subject, angle, **pick** (a dropdown of the matching images by name) | images, count, labels |
 | COF Voice (advanced) | `cof`, **sample** (a dropdown of the voice samples, with their language) | audio, transcript, labels |
 | COF Persona Text (advanced) | `cof` | the preset's personality as text (for a language-model node), language |
 | COF Motion & 3D Files (advanced) | `cof`, motion clips or 3D files, **pick** (a dropdown of the files by name, or all) | paths of the exported files, labels, count |
@@ -62,7 +62,7 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
-- **0.4.0** — images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
+- **0.4.0** — the kind list shows only the kinds the preset has, with counts; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
 - **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
 - **0.1.0** — first version.
