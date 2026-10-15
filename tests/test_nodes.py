@@ -101,16 +101,17 @@ def test_persona_motion_voice(pack, tmp_path, monkeypatch):
 
 def test_choices_pages_and_limits(pack):
     nodes, _ = pack
-    labels = [f"img {i}" for i in range(70)]
-    v = nodes._image_choices(labels)
-    assert v[0].startswith("mosaic_all") and "first 64" in v[0]
-    assert [x.split(" — ")[0] for x in v[1:4]] == ["mosaic_page_1", "mosaic_page_2", "mosaic_page_3"] and v[4].startswith("image_001 — img 0")
+    v = nodes._image_choices([f"img {i}" for i in range(70)])
+    assert [x.split(" — ")[0] for x in v[:3]] == ["mosaic_page_1", "mosaic_page_2", "mosaic_page_3"]
+    assert v[0] == "mosaic_page_1 — images 1–24 of 70" and v[2] == "mosaic_page_3 — images 49–70 of 70" and v[3].startswith("image_001 — img 0")
     items = list(range(70))
-    assert len(nodes._select(items, v[0])) == 64 and nodes._select(items, "mosaic_page_3") == list(range(48, 70))
-    assert nodes._select(items, "image_070 — img 69") == [69]
+    assert nodes._select(items, "mosaic_page_3") == list(range(48, 70)) and nodes._select(items, "image_070 — img 69") == [69]
+    with pytest.raises(Exception, match="24 at most"):
+        nodes._select(items, "mosaic_all")
     with pytest.raises(Exception, match="has 70 images"):
         nodes._select(items, "image_071")
     assert nodes._image_choices(["a", "b"]) == ["mosaic_all — 2 images", "image_001 — a", "image_002 — b"]
+    assert len(nodes._image_choices([str(i) for i in range(24)])) == 25 and nodes._select(list(range(24)), "mosaic_all") == list(range(24))
 
 
 def test_routes_fill_the_dropdowns(pack, monkeypatch):

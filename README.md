@@ -25,7 +25,7 @@ A **COF (Character Open File)** `.cof` packs a whole AI character — reference 
 | COF Reference Latents / RefMods (advanced) | `cof`, models subfolder (default `refmods`) | paths of the exported `.safetensors`, base models |
 
 - **Presets**: the dropdown lists the presets of the selected file — and, in a file with several characters, those of the selected character. `(default)` is the character's default preset. After adding a `.cof` file, press **R** (refresh) in ComfyUI.
-- **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To choose, take **COF Images**: its **pick** dropdown lists the images that match, by name (`image_001 — Bright studio facing the park (environment) · background.desktop`…), plus `mosaic_all` for the whole batch (64 images at most) and `mosaic_page_1`, `mosaic_page_2`… (24 at a time) when there are many.
+- **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To choose, take **COF Images**: its **pick** dropdown lists the images that match, by name (`image_001 — Bright studio facing the park (environment) · background.desktop`…), plus `mosaic_all` for all of them as one batch when there are 24 or fewer, or `mosaic_page_1`, `mosaic_page_2`… (24 at a time) when there are more.
 - The dropdowns follow the **COF Load Character** node they are connected to: change the file, the preset or the character, and the lists update.
 - **Motion clips** (BVH) are exported to `input/cof/`, **3D files** (VRM, GLB, OBJ…) to `input/3d/`, where the **Load 3D** node lists them.
 
@@ -62,7 +62,7 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
-- **0.4.0** — images, voice samples and files chosen by name in dropdowns (with pages for large sets); preview workflow with wider columns.
+- **0.4.0** — images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.
 - **0.2.0** — preset and character dropdowns, image index and labels, voice labels, COF Persona Text, COF Motion & 3D Files.
 - **0.1.0** — first version.

@@ -82,8 +82,7 @@ def _pick(v: str) -> str:
     return "" if v in ("", DEFAULT) else v.split(SEP, 1)[0].strip()
 
 
-PAGE = 24                  # images per mosaic page
-MOSAIC_MAX = 64            # mosaic_all never batches more than this
+PAGE = 24                  # one limit: a mosaic holds at most 24 images (mosaic_all up to 24, otherwise pages of 24)
 
 
 def _token(v: str) -> str:
@@ -91,21 +90,24 @@ def _token(v: str) -> str:
 
 
 def _image_choices(labels: list[str]) -> list[str]:
-    """Dropdown values for a list of images: the whole batch, pages of 24 when there are many, then each image."""
+    """Dropdown values for a list of images: all of them as one mosaic (24 at most) or, beyond 24, pages of 24;
+    then each image by name."""
     n = len(labels)
-    out = [f"mosaic_all{SEP}{n} image{'s' if n != 1 else ''}" + (f", the first {MOSAIC_MAX}" if n > MOSAIC_MAX else "")]
-    if n > PAGE:
-        out += [f"mosaic_page_{p + 1}{SEP}images {p * PAGE + 1}–{min(n, (p + 1) * PAGE)}" for p in range((n + PAGE - 1) // PAGE)]
+    if n <= PAGE:
+        out = [f"mosaic_all{SEP}{n} image{'s' if n != 1 else ''}"]
+    else:
+        out = [f"mosaic_page_{p + 1}{SEP}images {p * PAGE + 1}–{min(n, (p + 1) * PAGE)} of {n}" for p in range((n + PAGE - 1) // PAGE)]
     return out + [f"image_{i + 1:03d}{SEP}{lab}" for i, lab in enumerate(labels)]
 
 
 def _select(items: list, pick: str, what: str = "image"):
     """mosaic_all / mosaic_page_N / image_NNN (or all / item_NNN, sample_NNN) → the chosen items."""
     t = _token(pick) or "mosaic_all"
-    if t in ("mosaic_all", "all"):
-        if len(items) > MOSAIC_MAX and t == "mosaic_all":
-            print(f"[COF] {len(items)} images: mosaic_all keeps the first {MOSAIC_MAX} — use mosaic_page_N for the others")
-            return items[:MOSAIC_MAX]
+    if t == "all":
+        return items
+    if t == "mosaic_all":
+        if len(items) > PAGE:
+            raise COFError(f"{len(items)} images match: a mosaic holds {PAGE} at most — choose mosaic_page_1, mosaic_page_2… in the list")
         return items
     m = re.fullmatch(r"mosaic_page_(\d+)", t)
     if m:
@@ -218,7 +220,7 @@ class COFImages:
             "subject": (["any", "head", "body", "hands", "hair", "outfit", "detail"],),
             "angle": (["any", "front", "left34", "left", "leftback34", "back", "rightback34", "right", "right34", "top", "low34"],),
             "pick": (["mosaic_all"] + [f"image_{i:03d}" for i in range(1, 65)], {"default": "mosaic_all",
-                     "tooltip": "the list shows the images that match, by name: mosaic_all = all of them as a batch (64 at most), mosaic_page_N = 24 at a time, image_NNN = one image"}),
+                     "tooltip": "the list shows the images that match, by name: mosaic_all = all of them as one batch (up to 24 images); beyond 24, mosaic_page_1, mosaic_page_2… = 24 at a time; image_NNN = one image"}),
         }}
 
     @classmethod
