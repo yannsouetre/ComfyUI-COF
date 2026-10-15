@@ -1,8 +1,16 @@
-# ComfyUI-COF
+<p align="center"><img src="docs/img/cof-comfy.png" alt="Diagram: a .cof file goes into the COF Load Character node, which outputs the preset's primary image, its references, a prompt and the rights" width="100%"></p>
 
-Load **COF (Character Open File)** characters in ComfyUI. A `.cof` file packs a whole AI character — reference views, outfits, LoRA, pre-encoded references (RefMods), voice, personality — together with its rights. These nodes turn a preset of that character into images, a prompt, a LoRA and audio for your workflow.
+<h1 align="center">ComfyUI-COF</h1>
 
-Format and tools: <https://github.com/yannsouetre/cof> · explorer: <https://yannsouetre.github.io/cof/viewer/> · builder: <https://yannsouetre.github.io/cof/builder/>
+<p align="center"><b>Load a whole AI character in ComfyUI — with its rights.</b></p>
+
+<p align="center">
+<a href="https://github.com/yannsouetre/cof"><img src="docs/img/btn-format.png" alt="The COF format" width="250"></a>&nbsp;&nbsp;&nbsp;
+<a href="https://yannsouetre.github.io/cof/viewer/"><img src="docs/img/btn-explore.png" alt="Explore a .cof" width="250"></a>&nbsp;&nbsp;&nbsp;
+<a href="https://yannsouetre.github.io/cof/builder/"><img src="docs/img/btn-build.png" alt="Build one in your browser" width="250"></a>
+</p>
+
+A **COF (Character Open File)** `.cof` packs a whole AI character — reference views, outfits, places, LoRA, pre-encoded references (RefMods), voice, poses, motion clips, personality — together with its rights. These nodes turn a **preset** of that character (a language, an age, a style…) into images, a prompt, a LoRA, audio and files for your workflow. No extra Python package is needed.
 
 ## Nodes
 
