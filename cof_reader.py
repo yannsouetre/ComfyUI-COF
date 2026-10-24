@@ -258,7 +258,7 @@ class COF:
             for vid in ((e or {}).get("variants") or {}):
                 v = self.variant(cat, vid) or {}
                 if v.get("nudity") is True or v.get("kind") == "intimate":
-                    out |= set(v.get("images") or []) | set(v.get("derived") or [])
+                    out |= set(v.get("images") or []) | set(v.get("derived") or []) | set(v.get("media") or [])
         return out
 
     def primary_image(self, pid: str, allow_adult: bool = False) -> str | None:
@@ -471,3 +471,86 @@ class COF:
         if len(self.identities()) > 1:
             lines.append("characters: " + ", ".join(f"{i} ({x.get('name')})" for i, x in self.identities().items()))
         return "\n".join(lines)
+
+
+    # ---- memories (COF 1.1, RFC 0002) ----------------------------------------------------------------------
+
+    def memory_media(self, vid: str) -> list[str]:
+        """Asset ids of a memory node's media, following `media_from` (shared media)."""
+        seen, cur = set(), vid
+        while cur and cur not in seen:
+            seen.add(cur)
+            v = self.variant("memories", cur) or {}
+            if v.get("media"):
+                return list(v["media"])
+            cur = str(v.get("media_from") or "").partition("/")[2]
+        return []
+
+    def memories(self, pid: str, include_personal: bool = False) -> list[dict]:
+        """The preset's memories in timeline order (by age, else by date and the birth year the file implies, else
+        after the node they link to, undated last): [{id, kind, label, node, lang, gist, when, media}]."""
+        vids = [v for v in (self.slots(pid).get("memories") or []) if self.variant("memories", v)]
+        nodes = {}
+        for v in vids:
+            rel = (self.variant("memories", v) or {}).get("memory")
+            n = self.json_at(rel) if rel else None
+            if isinstance(n, dict):
+                nodes[v] = n
+        vids = [v for v in vids if v in nodes]
+
+        def year(d):
+            m = re.match(r"^(-?\d{1,4})(?:-(\d{2})(?:-(\d{2}))?)?$", str(d or ""))
+            return None if not m else int(m.group(1)) + (int(m.group(2) or 7) - 1) / 12 + (int(m.group(3) or 15) - 1) / 365
+
+        def point(v):
+            w = nodes[v].get("when") or {}
+            p = (w.get("from") or w.get("to") or {}) if self.variant("memories", v).get("kind") == "period" else w
+            return age_years(p.get("age")), year(p.get("date"))
+
+        by = sorted(y - a for a, y in map(point, vids) if a is not None and y is not None)
+        birth = by[len(by) // 2] if by else None
+        key = {}
+        for v in vids:
+            a, y = point(v)
+            if a is None and y is not None:
+                a = y - birth if birth is not None else 10_000 + y
+            if a is not None:
+                key[v] = a
+        for _ in vids:
+            changed = False
+            for v in vids:
+                if v in key:
+                    continue
+                for ln in nodes[v].get("links") or []:
+                    cat, _, tgt = str(ln.get("to", "")).partition("/")
+                    if cat == "memories" and tgt in key:
+                        key[v] = key[tgt] + 0.001; changed = True; break
+            if not changed:
+                break
+        order = sorted((v for v in vids if v in key), key=lambda v: (key[v], vids.index(v))) + [v for v in vids if v not in key]
+        pers = (self.resolved(self.slots(pid)).get("personality") or [{}])[0]
+        want = [x for x in (pers.get("language"), self.identity(self.owner(pid)).get("language")) if x]
+        out = []
+        for v in order:
+            n = nodes[v]
+            if n.get("visibility") == "personal" and not include_personal:
+                continue
+            g = n.get("gist") or {}
+            low = {k.lower(): k for k in g}
+            lang = next((low[w.lower()] for w in want if w.lower() in low), None) or \
+                   next((low[k] for w in want for k in low if k.split("-")[0] == w.lower().split("-")[0]), None) or next(iter(g), "")
+            rv = self.variant("memories", v) or {}
+            w = n.get("when") or {}
+            lab = (w.get("label") or {}).get(lang) or next(iter((w.get("label") or {}).values()), "")
+            if rv.get("kind") == "period":
+                fa, ta = age_years((w.get("from") or {}).get("age")), age_years((w.get("to") or {}).get("age"))
+                fig = "" if fa is None and ta is None else (f"age {fa:g}" if ta is None else f"until age {ta:g}" if fa is None else f"age {fa:g}–{ta:g}")
+            else:
+                a = age_years(w.get("age"))
+                fig = (("~" if w.get("approx") else "") + f"age {a:g}") if a is not None else ""
+                if w.get("date"):
+                    fig = f"{fig}, {w['date']}" if fig else w["date"]
+            out.append({"id": v, "kind": rv.get("kind"), "label": rv.get("label") or v, "node": n, "lang": lang,
+                        "gist": g.get(lang, ""), "when": f"{lab} ({fig})" if lab and fig else (lab or fig or "undated"),
+                        "media": self.memory_media(v)})
+        return out

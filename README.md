@@ -28,6 +28,7 @@ A **COF (Character Open File)** `.cof` packs a whole AI character — reference 
 | 🏃 COF Postures | `cof`, **kind** (photo, photos, OpenPose, silhouette — with counts), include offered, **pick** | images, count, labels |
 | 🎥 COF Motion | `cof`, **pick** (the motion clips by name, or all) | paths (exported to `input/cof/`), labels, count |
 | 📁 COF Files | `cof`, **kind** (skill, memory, document…), **pick** | the text of the chosen files, their paths (exported to `input/cof/…/files/`, a skill keeps its folder layout), labels, count |
+| 🕰️ COF Memories (COF 1.1) | `cof`, **pick** (the memories by name, oldest first, or all), include personal, include text media | the memories as text for a prompt (gist in the preset's language, when-marker, nature / disclosure / fidelity, remembered lines), their images, labels, count |
 
 The builder's LoRA icon is a drawing; 🧬 stands for it here. **COF Files** reads and exports text files only (Markdown, text, JSON, YAML, CSV): a script inside a skill is listed, never extracted.
 
@@ -79,11 +80,13 @@ cd tests && python -m pytest test_nodes.py --import-mode=importlib -c /dev/null
 
 The tests stub `torch` and `comfy`. They need four sample files in `tests/samples/`:
 - `clara-mercier.cof` and `clara-martien.cof`, from `viewer/samples/` of the COF repository;
+- `clara-memories.cof`, the COF repository's `spec/examples/10-clara-mercier` (1.1, with memories) packed;
 - `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
 - `refmod.cof`, a test file with a pre-encoded reference.
 
 ## Changes
 
+- **0.6.0** — **COF Memories** (COF 1.1, RFC 0002): the preset's memories in timeline order (by age, else by date, else by links, undated last) as one text for a language model — the gist in the preset's language, the when-marker, `nature` / `disclosure` / `fidelity`, the short text media (remembered lines) — and their images as a batch; personal memories left out unless asked; the media of an explicit memory only when the loader allows adult content. A 1.0 file gives an empty text and a count of 0. Test sample `tests/samples/clara-memories.cof` (COF example 10, 1.1).
 - **0.5.0** — one node per category of the COF builder, with its icon: COF Personality, Appearance, Identity Weights (Apply LoRA, Reference Latents), 3D, Voice, Postures, Motion, Files (new: skills, memories, documents — text files only). COF Images becomes COF Appearance (appearance only; postures have their own node), COF Persona Text becomes COF Personality, COF Motion & 3D Files is split in two. "include offered" is on by default. The preview workflow holds one node per category, in the builder's order, with a Read me note.
 - **0.4.0** — the kind list shows only the kinds the preset has, with counts (the node keeps its own kind, even at 0); a preset without a voice gives one second of silence instead of stopping the run; image labels show size and orientation; the prompt leaves out the summary for a preset of another age; the preview workflow opens with a Read me note; images, voice samples and files chosen by name in dropdowns (a mosaic holds 24 images at most; pages of 24 beyond); preview workflow with wider columns.
 - **0.3.0** — laid-out preview workflow (`cof_preview.json`), illustrated README, registry metadata.

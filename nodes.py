@@ -28,7 +28,7 @@ KINDS = {
 }
 ALWAYS = {"appearance": 2, "posture": 1, "files": 1}       # how many leading choices are always listed
 # builder icons (the builder's LoRA icon is a drawing: 🧬 stands for it)
-ICON = {"load": "👤", "personality": "📝", "appearance": "🖼️", "weights": "🧬", "volume3d": "🧊", "voice": "👄",
+ICON = {"load": "👤", "memories": "🕰️", "personality": "📝", "appearance": "🖼️", "weights": "🧬", "volume3d": "🧊", "voice": "👄",
         "posture": "🏃", "motion": "🎥", "files": "📁"}
 
 
@@ -123,7 +123,7 @@ def _select(items: list, pick: str, what: str = "image"):
     if m:
         k = int(m.group(1))
         return items[(k - 1) * PAGE:k * PAGE]
-    m = re.fullmatch(r"(?:image|item|sample)_(\d+)", t)
+    m = re.fullmatch(r"(?:image|item|sample|memory)_(\d+)", t)
     if m:
         k = int(m.group(1))
         if not 1 <= k <= len(items):
@@ -522,9 +522,64 @@ class COFFiles:
         return ("\n\n".join(texts), "\n".join(paths), labels, len(items))
 
 
+class COFMemories:
+    """Memories (COF 1.1): the preset's memories in timeline order — the gists as one text for a language model,
+    the images of the memories as a batch (a memory's explicit media only when the loader allows adult content),
+    one line per memory. Personal memories (a user's data) are left out unless asked."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",),
+                             "pick": (["all"] + [f"memory_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the memories by name, oldest first; all = every one"})},
+                "optional": {"include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the memories marked personal (a user's data, never shared by default)"}),
+                             "include_text_media": ("BOOLEAN", {"default": True, "tooltip": "append the short text media of each memory (remembered lines) after its gist"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, pick):
+        return True
+
+    RETURN_TYPES = ("STRING", "IMAGE", "STRING", "INT")
+    RETURN_NAMES = ("text", "images", "labels", "count")
+    OUTPUT_TOOLTIPS = ("the memories as text, oldest first: a heading per memory with its when-marker, then the gist (in the preset's language) and its remembered lines",
+                       "the images of the chosen memories (a blank image when there is none)", "one line per memory: its name and when", "how many memories the preset lists")
+    FUNCTION = "recall"
+    CATEGORY = "COF"
+    DESCRIPTION = "The character's memories (COF 1.1): gists in timeline order for a prompt, and their images."
+
+    def recall(self, cof, pick="all", include_personal=False, include_text_media=True):
+        c, pid = cof["cof"], cof["preset"]
+        mems = c.memories(pid, include_personal)
+        labels = "\n".join(f"memory_{i + 1:03d}: {english(m['label'])} — {m['when']}" for i, m in enumerate(mems)) or "(this preset has no memory)"
+        chosen = _select(mems, "all" if _token(pick) == "all" else pick, "memory") if mems else []
+        lines, aids = [], []
+        for m in chosen:
+            n = m["node"]
+            marks = [x for x in (n.get("nature") or []) if x != "experienced"]
+            marks += [x for x in (n.get("disclosure"), n.get("fidelity")) if x and x not in ("open", "clear")]
+            if n.get("explicit"):
+                marks.append("explicit")
+            lines.append(f"### {m['label']}  ·  {m['when']}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
+            lines.append(m["gist"].strip())
+            if n.get("explicit") and not cof["allow_intimate"]:
+                media = []                                                   # RFC 0002 § 5: never without the opt-in
+            else:
+                media = [c.assets.get(a) or {} for a in m["media"]]
+            if include_text_media:
+                for a in media:
+                    if str(a.get("mediaType") or "").startswith("text/") and (not a.get("language") or a["language"].split("-")[0] == m["lang"].split("-")[0]):
+                        try:
+                            lines.append(c.read_text(a["id"]).strip())
+                        except COFError:
+                            pass
+            aids += [a["id"] for a in media if str(a.get("mediaType") or "").startswith("image/") and not a.get("derived_from")]
+            lines.append("")
+        return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), labels, len(mems))
+
+
 NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFPersonality": COFPersonality, "COFAppearance": COFAppearance,
                        "COFApplyLoRA": COFApplyLoRA, "COFReferenceLatents": COFReferenceLatents, "COF3D": COF3D,
-                       "COFVoice": COFVoice, "COFPostures": COFPostures, "COFMotion": COFMotion, "COFFiles": COFFiles}
+                       "COFVoice": COFVoice, "COFPostures": COFPostures, "COFMotion": COFMotion, "COFFiles": COFFiles,
+                       "COFMemories": COFMemories}
 # one node per category of the COF builder, in the builder's order, with the builder's icons
 NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": f"{ICON['load']} COF Load Character",
                               "COFPersonality": f"{ICON['personality']} COF Personality",
@@ -535,7 +590,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": f"{ICON['load']} COF Load Char
                               "COFVoice": f"{ICON['voice']} COF Voice",
                               "COFPostures": f"{ICON['posture']} COF Postures",
                               "COFMotion": f"{ICON['motion']} COF Motion",
-                              "COFFiles": f"{ICON['files']} COF Files"}
+                              "COFFiles": f"{ICON['files']} COF Files",
+                              "COFMemories": f"{ICON['memories']} COF Memories"}
 
 
 def _routes():
@@ -584,6 +640,9 @@ def _routes():
                 aids = _image_ids(c, pid, q.get("kind", "all"), q.get("offered") == "true", q.get("allow") == "true",
                                   q.get("subject", "any"), q.get("angle", "any"), cat)
                 values = _image_choices([c.image_label(a) for a in aids])
+            elif node == "memories":
+                mems = c.memories(pid, q.get("personal") == "true")
+                values = [f"all{SEP}{len(mems)} memor{'y' if len(mems) == 1 else 'ies'}"] + [f"memory_{i + 1:03d}{SEP}{english(m['label'])} — {m['when']}" for i, m in enumerate(mems)]
             elif node == "voice":
                 values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":

@@ -64,6 +64,7 @@ const PICKERS = {
   COF3D: { widget: "pick", node: "media", cat: "volume3d", params: () => ({}), watch: [] },
   COFMotion: { widget: "pick", node: "media", cat: "motion", params: () => ({}), watch: [] },
   COFFiles: { widget: "pick", node: "media", cat: "files", kinds: true, params: n => ({ kind: token(W(n, "kind")?.value) }), watch: ["kind"] },
+  COFMemories: { widget: "pick", node: "memories", params: n => ({ personal: String(!!W(n, "include_personal")?.value) }), watch: ["include_personal"] },
 };
 
 async function refreshPicker(node) {
