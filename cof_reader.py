@@ -404,6 +404,17 @@ class COF:
                         out.append(lead + d[k].strip())
             elif isinstance(v.get("text"), str) and v["text"].strip():
                 out.append(v["text"].strip())
+            if v.get("psyche"):                                   # RFC 0003 (1.1): archetype and narrative role, one line each
+                ps = self.json_at(v["psyche"]) or {}
+                a = ps.get("archetype") or {}
+                if isinstance(a, dict) and a.get("value"):
+                    name = (a.get("label") or {}).get(v.get("language") or "en") or next(iter((a.get("label") or {}).values()), None) or str(a["value"]).replace("-", " ").title()
+                    line = f"Archetype: {name}"
+                    if a.get("secondary"):
+                        line += " (secondary: " + ", ".join(str(x).title() for x in a["secondary"]) + ")"
+                    out.append(line)
+                if ps.get("role"):
+                    out.append(f"Narrative role: {str(ps['role']).replace('-', ' ')}")
         return "\n\n".join(out), ", ".join(dict.fromkeys(langs))
 
     def media(self, pid: str, cat: str, kinds=None) -> list[dict]:
