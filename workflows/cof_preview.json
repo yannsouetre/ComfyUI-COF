@@ -1,6 +1,6 @@
 {
- "last_node_id": 43,
- "last_link_id": 22,
+ "last_node_id": 53,
+ "last_link_id": 26,
  "nodes": [
   {
    "id": 1,
@@ -29,7 +29,8 @@
       14,
       17,
       19,
-      21
+      21,
+      23
      ],
      "slot_index": 0
     },
@@ -194,7 +195,7 @@
    ],
    "size": [
     2240,
-    320
+    380
    ],
    "flags": {},
    "order": 5,
@@ -206,7 +207,7 @@
     "cof_readme": true
    },
    "widgets_values": [
-    "## Read me — how this workflow works\n\n**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.\n\n- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.\n- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.\n- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF"
+    "## Read me — how this workflow works\n\n**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.\n\n- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.\n- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.\n- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF\n\n**COF 1.1 — 🕰️ COF Memories** (bottom row): the character's memories in timeline order as one text for a language model (gist in the preset's language, when-marker, nature / disclosure / fidelity, remembered lines) and their images. Personal memories are left out unless *include personal* is on; the media of an explicit memory come only when the loader allows adult content. Needs a 1.1 file (Clara's `clara-mercier.cof` of the COF repository has five memories); a 1.0 file gives an empty text."
    ],
    "title": "Read me",
    "color": "#0f6b5c",
@@ -889,6 +890,144 @@
     "Node name for S&R": "PreviewAny"
    },
    "title": "Files: text"
+  },
+  {
+   "id": 50,
+   "type": "COFMemories",
+   "pos": [
+    0,
+    2680
+   ],
+   "size": [
+    380,
+    150
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "cof",
+     "type": "COF",
+     "link": 23
+    }
+   ],
+   "outputs": [
+    {
+     "name": "text",
+     "type": "STRING",
+     "links": [
+      24
+     ]
+    },
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": [
+      25
+     ]
+    },
+    {
+     "name": "labels",
+     "type": "STRING",
+     "links": [
+      26
+     ]
+    },
+    {
+     "name": "count",
+     "type": "INT",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "COFMemories"
+   },
+   "widgets_values": [
+    "all",
+    false,
+    true
+   ]
+  },
+  {
+   "id": 51,
+   "type": "PreviewAny",
+   "pos": [
+    560,
+    2680
+   ],
+   "size": [
+    520,
+    420
+   ],
+   "flags": {},
+   "order": 23,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 24
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Files: text"
+  },
+  {
+   "id": 52,
+   "type": "PreviewImage",
+   "pos": [
+    1240,
+    2680
+   ],
+   "size": [
+    520,
+    420
+   ],
+   "flags": {},
+   "order": 19,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 25
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   }
+  },
+  {
+   "id": 53,
+   "type": "PreviewAny",
+   "pos": [
+    1800,
+    2680
+   ],
+   "size": [
+    440,
+    200
+   ],
+   "flags": {},
+   "order": 23,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 26
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "title": "Files: text"
   }
  ],
  "links": [
@@ -1065,6 +1204,38 @@
    42,
    0,
    43,
+   0,
+   "STRING"
+  ],
+  [
+   23,
+   1,
+   0,
+   50,
+   0,
+   "COF"
+  ],
+  [
+   24,
+   50,
+   0,
+   51,
+   0,
+   "STRING"
+  ],
+  [
+   25,
+   50,
+   1,
+   52,
+   0,
+   "IMAGE"
+  ],
+  [
+   26,
+   50,
+   2,
+   53,
    0,
    "STRING"
   ]
