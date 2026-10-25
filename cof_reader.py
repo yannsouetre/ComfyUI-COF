@@ -137,6 +137,21 @@ class COF:
         return out
 
     # ---------- presets ----------
+    def identity_view(self, pid: str) -> dict:
+        """The identity as this preset presents it: identity_override of the chain merged field by field (COF 1.1, RFC 0003 § 4)."""
+        I = dict(self.identity(self.owner(pid)))
+        seen = {}
+        for q in self.chain(pid):
+            for k, v in (self.presets[q].get("identity_override") or {}).items():
+                if k in ("name", "given_name", "family_name", "nicknames", "gender", "gender_label", "summary") and k not in seen and v is not None:
+                    seen[k] = v
+        I.update(seen)
+        return I
+
+    def preset_prompts(self, pid: str) -> dict:
+        """`prompts.scene` / `prompts.greeting` of this preset only — not inherited: a scene fits one presentation (RFC 0003 § 4 bis); language maps."""
+        return {k: v for k, v in (self.presets[pid].get("prompts") or {}).items() if k in ("scene", "greeting") and v}
+
     def chain(self, pid: str) -> list[str]:
         out, seen, q = [], set(), pid
         while q and q in self.presets and q not in seen:
@@ -310,7 +325,7 @@ class COF:
         p = self.presets[pid]
         if isinstance(p.get("prompt"), str) and p["prompt"].strip():
             return p["prompt"].strip()
-        I = self.identity(self.owner(pid))
+        I = self.identity_view(pid)
         r = self.resolved(self.slots(pid))
         parts = [I.get("name") or self.m.get("name") or ""]
         age = self.preset_age(pid)
@@ -340,7 +355,17 @@ class COF:
         trig = self.trigger_words(pid)
         if trig:
             parts.insert(0, ", ".join(trig))
-        return ", ".join(x for x in parts if x)
+        g = I.get("gender")
+        if g in ("female", "male", "non-binary") and I.get("morphology", {}).get("class") in ("human", "humanoid", None):
+            parts.insert(1 if trig else 0, {"female": "woman", "male": "man", "non-binary": "person"}[g] if (age is None or age >= 18) else {"female": "girl", "male": "boy", "non-binary": "child"}[g])
+        text = ", ".join(x for x in parts if x)
+        scene = self.preset_prompts(pid).get("scene")                       # RFC 0003 § 4 bis: the preset's default scene comes first
+        if scene:
+            lang = next((v.get("language") for v in r.get("personality", []) if v.get("language")), None)
+            sc = (scene.get(lang) if lang else None) or next(iter(scene.values()), "")
+            if sc.strip():
+                text = sc.strip().rstrip(".") + ". " + text
+        return text
 
     def weights(self, pid: str, kinds=("lora", "lycoris", "dora")) -> list[dict]:
         out = []
@@ -415,6 +440,12 @@ class COF:
                     out.append(line)
                 if ps.get("role"):
                     out.append(f"Narrative role: {str(ps['role']).replace('-', ' ')}")
+        greet = self.preset_prompts(pid).get("greeting")                     # RFC 0003 § 4 bis
+        if greet:
+            lang = langs[0] if langs else None
+            gt = (greet.get(lang) if lang else None) or next(iter(greet.values()), "")
+            if gt.strip():
+                out.append("Opening line: " + gt.strip())
         return "\n\n".join(out), ", ".join(dict.fromkeys(langs))
 
     def media(self, pid: str, cat: str, kinds=None) -> list[dict]:
