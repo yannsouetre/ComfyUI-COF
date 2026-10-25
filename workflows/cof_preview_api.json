@@ -254,5 +254,53 @@
   "_meta": {
    "title": "Files: text"
   }
+ },
+ "50": {
+  "class_type": "COFMemories",
+  "inputs": {
+   "pick": "all",
+   "include_personal": false,
+   "include_text_media": true,
+   "cof": [
+    "1",
+    0
+   ]
+  }
+ },
+ "51": {
+  "class_type": "PreviewAny",
+  "inputs": {
+   "source": [
+    "50",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Memories: text"
+  }
+ },
+ "52": {
+  "class_type": "PreviewImage",
+  "inputs": {
+   "images": [
+    "50",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Memories: images"
+  }
+ },
+ "53": {
+  "class_type": "PreviewAny",
+  "inputs": {
+   "source": [
+    "50",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Memories: labels"
+  }
  }
 }

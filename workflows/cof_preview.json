@@ -195,7 +195,7 @@
    ],
    "size": [
     2240,
-    380
+    520
    ],
    "flags": {},
    "order": 5,
@@ -207,7 +207,7 @@
     "cof_readme": true
    },
    "widgets_values": [
-    "## Read me — how this workflow works\n\n**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.\n\n- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.\n- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.\n- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF\n\n**COF 1.1 — 🕰️ COF Memories** (bottom row): the character's memories in timeline order as one text for a language model (gist in the preset's language, when-marker, nature / disclosure / fidelity, remembered lines) and their images. Personal memories are left out unless *include personal* is on; the media of an explicit memory come only when the loader allows adult content. Needs a 1.1 file (Clara's `clara-mercier.cof` of the COF repository has five memories); a 1.0 file gives an empty text."
+    "## Read me — how this workflow works\n\n**One node per category of the COF builder**, each in its own group below: 📝 Personality · 🖼️ Appearance · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files — and 🕰️ Memories (COF 1.1) last.\n\n- **The nodes are a fixed template**: only their **dropdown lists** follow the loaded file, preset and character. Another type (face, body, hair…): change **kind**; a node keeps its type, shown \"— 0 images\" if this preset has none.\n- **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.\n- **pick**: `mosaic_all` = every image (24 at most, then `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.\n- **Missing content** gives silence, a blank image or an empty list, and says so: the run goes on. 🧬 Identity weights (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.\n\nMore: github.com/yannsouetre/ComfyUI-COF"
    ],
    "title": "Read me",
    "color": "#0f6b5c",
@@ -218,7 +218,7 @@
    "type": "COFPersonality",
    "pos": [
     0,
-    890
+    1110
    ],
    "size": [
     380,
@@ -259,7 +259,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    890
+    1110
    ],
    "size": [
     520,
@@ -286,7 +286,7 @@
    "type": "COFAppearance",
    "pos": [
     1240,
-    890
+    1110
    ],
    "size": [
     380,
@@ -340,7 +340,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    890
+    1110
    ],
    "size": [
     440,
@@ -366,7 +366,7 @@
    "type": "COFAppearance",
    "pos": [
     0,
-    1330
+    1550
    ],
    "size": [
     380,
@@ -422,7 +422,7 @@
    "type": "PreviewImage",
    "pos": [
     560,
-    1330
+    1550
    ],
    "size": [
     440,
@@ -448,7 +448,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1620
+    1840
    ],
    "size": [
     520,
@@ -475,7 +475,7 @@
    "type": "COF3D",
    "pos": [
     1240,
-    1330
+    1550
    ],
    "size": [
     380,
@@ -525,7 +525,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    1330
+    1550
    ],
    "size": [
     440,
@@ -552,7 +552,7 @@
    "type": "COFVoice",
    "pos": [
     0,
-    1790
+    2010
    ],
    "size": [
     380,
@@ -604,7 +604,7 @@
    "type": "PreviewAudio",
    "pos": [
     560,
-    1790
+    2010
    ],
    "size": [
     520,
@@ -630,7 +630,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    1940
+    2160
    ],
    "size": [
     520,
@@ -657,7 +657,7 @@
    "type": "COFPostures",
    "pos": [
     1240,
-    1790
+    2010
    ],
    "size": [
     380,
@@ -709,7 +709,7 @@
    "type": "PreviewImage",
    "pos": [
     1800,
-    1790
+    2010
    ],
    "size": [
     440,
@@ -735,7 +735,7 @@
    "type": "COFMotion",
    "pos": [
     0,
-    2230
+    2450
    ],
    "size": [
     380,
@@ -785,7 +785,7 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    2230
+    2450
    ],
    "size": [
     520,
@@ -812,7 +812,7 @@
    "type": "COFFiles",
    "pos": [
     1240,
-    2230
+    2450
    ],
    "size": [
     380,
@@ -869,7 +869,7 @@
    "type": "PreviewAny",
    "pos": [
     1800,
-    2230
+    2450
    ],
    "size": [
     440,
@@ -892,18 +892,45 @@
    "title": "Files: text"
   },
   {
+   "id": 7,
+   "type": "MarkdownNote",
+   "pos": [
+    0,
+    2930
+   ],
+   "size": [
+    2240,
+    420
+   ],
+   "flags": {},
+   "order": 24,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote",
+    "cof_readme": true
+   },
+   "widgets_values": [
+    "## 🕰️ COF Memories — COF 1.1\n\nThe character's memories in timeline order, as **one text** for a language model (the gist in the preset's language, a when-marker, nature / disclosure / fidelity, the remembered lines) and **their images** as a batch.\n\n- Needs a **1.1 file**: the COF repository's `spec/examples/10-clara-mercier` has sixteen (five in the default preset, nine at 65). A 1.0 file gives an empty text and a count of 0.\n- **include personal** is off: a user's personal memories never come out unless asked. The media of an explicit memory come only when the loader allows adult content.\n- Collapse any group with the dot at its top left; collapse a node with the dot in its title."
+   ],
+   "title": "Read me — Memories (COF 1.1)",
+   "color": "#0f6b5c",
+   "bgcolor": "#18201f"
+  },
+  {
    "id": 50,
    "type": "COFMemories",
    "pos": [
     0,
-    2680
+    3400
    ],
    "size": [
     380,
     150
    ],
    "flags": {},
-   "order": 0,
+   "order": 25,
    "mode": 0,
    "inputs": [
     {
@@ -918,26 +945,30 @@
      "type": "STRING",
      "links": [
       24
-     ]
+     ],
+     "slot_index": 0
     },
     {
      "name": "images",
      "type": "IMAGE",
      "links": [
       25
-     ]
+     ],
+     "slot_index": 1
     },
     {
      "name": "labels",
      "type": "STRING",
      "links": [
       26
-     ]
+     ],
+     "slot_index": 2
     },
     {
      "name": "count",
      "type": "INT",
-     "links": []
+     "links": [],
+     "slot_index": 3
     }
    ],
    "properties": {
@@ -954,14 +985,14 @@
    "type": "PreviewAny",
    "pos": [
     560,
-    2680
+    3400
    ],
    "size": [
     520,
     420
    ],
    "flags": {},
-   "order": 23,
+   "order": 26,
    "mode": 0,
    "inputs": [
     {
@@ -974,21 +1005,21 @@
    "properties": {
     "Node name for S&R": "PreviewAny"
    },
-   "title": "Files: text"
+   "title": "Memories: text"
   },
   {
    "id": 52,
    "type": "PreviewImage",
    "pos": [
     1240,
-    2680
+    3400
    ],
    "size": [
     520,
     420
    ],
    "flags": {},
-   "order": 19,
+   "order": 27,
    "mode": 0,
    "inputs": [
     {
@@ -1000,21 +1031,22 @@
    "outputs": [],
    "properties": {
     "Node name for S&R": "PreviewImage"
-   }
+   },
+   "title": "Memories: images"
   },
   {
    "id": 53,
    "type": "PreviewAny",
    "pos": [
     1800,
-    2680
+    3400
    ],
    "size": [
     440,
     200
    ],
    "flags": {},
-   "order": 23,
+   "order": 28,
    "mode": 0,
    "inputs": [
     {
@@ -1027,7 +1059,7 @@
    "properties": {
     "Node name for S&R": "PreviewAny"
    },
-   "title": "Files: text"
+   "title": "Memories: labels"
   }
  ],
  "links": [
@@ -1250,18 +1282,106 @@
     330
    ],
    "color": "#0f6b5c",
-   "font_size": 24
+   "font_size": 22
   },
   {
-   "title": "One node per category of the COF builder",
+   "title": "📝 Personality",
    "bounding": [
     -20,
-    830,
-    2300,
-    1780
+    1050,
+    1120,
+    400
    ],
    "color": "#2a3533",
-   "font_size": 24
+   "font_size": 22
+  },
+  {
+   "title": "🖼️ Appearance — outfits",
+   "bounding": [
+    1220,
+    1050,
+    1080,
+    400
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "🖼️ Appearance — a place",
+   "bounding": [
+    -20,
+    1490,
+    1120,
+    520
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "🧊 3D",
+   "bounding": [
+    1220,
+    1490,
+    1080,
+    520
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "👄 Voice",
+   "bounding": [
+    -20,
+    1950,
+    1120,
+    400
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "🏃 Postures",
+   "bounding": [
+    1220,
+    1950,
+    1080,
+    400
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "🎥 Motion",
+   "bounding": [
+    -20,
+    2390,
+    1120,
+    360
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "📁 Files",
+   "bounding": [
+    1220,
+    2390,
+    1080,
+    360
+   ],
+   "color": "#2a3533",
+   "font_size": 22
+  },
+  {
+   "title": "🕰️ Memories (COF 1.1)",
+   "bounding": [
+    -20,
+    2870,
+    2320,
+    1010
+   ],
+   "color": "#0f6b5c",
+   "font_size": 22
   }
  ],
  "config": {},

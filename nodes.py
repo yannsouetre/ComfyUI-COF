@@ -37,6 +37,9 @@ def _register_folder():
         return
     if "cof" not in folder_paths.folder_names_and_paths:
         folder_paths.folder_names_and_paths["cof"] = ([os.path.join(folder_paths.models_dir, "cof")], {".cof"})
+    else:                                                  # registered by an older copy of these nodes with every extension: .cof only
+        paths, _ = folder_paths.folder_names_and_paths["cof"]
+        folder_paths.folder_names_and_paths["cof"] = (paths, {".cof"})
     inp = os.path.join(folder_paths.get_input_directory(), "cof")
     paths = folder_paths.folder_names_and_paths["cof"][0]
     if inp not in paths:
@@ -63,7 +66,8 @@ def _open(name: str) -> COF:
 
 
 def _files() -> list[str]:
-    return folder_paths.get_filename_list("cof") if folder_paths else []
+    """The .cof files of models/cof and input/cof — only those (the clips the Motion node extracts live in subfolders there)."""
+    return [f for f in (folder_paths.get_filename_list("cof") if folder_paths else []) if f.lower().endswith(".cof")]
 
 
 def _choices() -> tuple[list[str], list[str]]:
@@ -548,6 +552,9 @@ class COFMemories:
 
     def recall(self, cof, pick="all", include_personal=False, include_text_media=True):
         c, pid = cof["cof"], cof["preset"]
+        if not hasattr(c, "memories"):          # the loader came from another copy of ComfyUI-COF (0.5.0 still in custom_nodes): reopen with this one
+            c = COF(c.path)
+            print("[ComfyUI-COF] COF Memories: the file was loaded by an older ComfyUI-COF — keep a single ComfyUI-COF folder in custom_nodes and restart")
         mems = c.memories(pid, include_personal)
         labels = "\n".join(f"memory_{i + 1:03d}: {english(m['label'])} — {m['when']}" for i, m in enumerate(mems)) or "(this preset has no memory)"
         chosen = _select(mems, "all" if _token(pick) == "all" else pick, "memory") if mems else []

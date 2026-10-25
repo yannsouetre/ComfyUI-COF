@@ -6,16 +6,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 NOTE = """## Read me — how this workflow works
 
-**One node per category of the COF builder**: 📝 Personality · 🖼️ Appearance · 🧬 Identity weights · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files.
+**One node per category of the COF builder**, each in its own group below: 📝 Personality · 🖼️ Appearance · 🧊 3D · 👄 Voice · 🏃 Postures · 🎥 Motion · 📁 Files — and 🕰️ Memories (COF 1.1) last.
 
-- **The nodes are a fixed template.** They do not appear or disappear with the file's content: only their **dropdown lists** follow the loaded file, preset and character.
-- **Another type** (face, body, hair, accessory…): change **kind** in the node. The list shows only the types this preset has, with their number of images or files; a node keeps its type, shown "— 0 images" if this preset has none.
+- **The nodes are a fixed template**: only their **dropdown lists** follow the loaded file, preset and character. Another type (face, body, hair…): change **kind**; a node keeps its type, shown "— 0 images" if this preset has none.
 - **Add a node**: double-click an empty spot → type `COF` → choose the node → drag the **cof** output of *COF Load Character* to its **cof** input → connect a preview → Run.
-- **pick**: `mosaic_all` = every image (24 at most; beyond, `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.
-- **Missing content** (no voice, no 3D…) gives silence, a blank image or an empty list, and says so: the run goes on.
-- 🧬 **Identity weights** (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.
+- **pick**: `mosaic_all` = every image (24 at most, then `mosaic_page_1`, `_2`…), `image_001`… = one image; `all` / `item_001`… for files.
+- **Missing content** gives silence, a blank image or an empty list, and says so: the run goes on. 🧬 Identity weights (LoRA, RefMods) need a model: see `cof_txt2img_api.json`.
 
 More: github.com/yannsouetre/ComfyUI-COF"""
+
+MEMNOTE = """## 🕰️ COF Memories — COF 1.1
+
+The character's memories in timeline order, as **one text** for a language model (the gist in the preset's language, a when-marker, nature / disclosure / fidelity, the remembered lines) and **their images** as a batch.
+
+- Needs a **1.1 file**: the COF repository's `spec/examples/10-clara-mercier` has sixteen (five in the default preset, nine at 65). A 1.0 file gives an empty text and a count of 0.
+- **include personal** is off: a user's personal memories never come out unless asked. The media of an explicit memory come only when the loader allows adult content.
+- Collapse any group with the dot at its top left; collapse a node with the dot in its title."""
 
 nodes, links, api = [], [], {}
 def node(nid, typ, pos, size, widgets=None, title=None, outputs=(), inputs=()):
@@ -44,14 +50,14 @@ node(2, "PreviewImage", (560, 0), (300, 440), title="Primary image", inputs=[IMG
 node(3, "PreviewImage", (900, 0), (520, 440), title="References (batch)", inputs=[IMG]); link(1, 2, 3, "images")
 node(4, "PreviewAny", (1800, 0), (420, 210), title="Prompt", inputs=[STR]); link(1, 3, 4, "source")
 node(5, "PreviewAny", (1800, 240), (420, 210), title="Info and rights", inputs=[STR]); link(1, 4, 5, "source")
-node(6, "MarkdownNote", (0, 500), (2240, 320), [NOTE], title="Read me", )
+node(6, "MarkdownNote", (0, 500), (2240, 520), [NOTE], title="Read me", )
 nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"})
 nodes[-1]["properties"]["cof_readme"] = True        # web/cof.js shows this note's text at twice the usual size
 
 IMGOUT = [("images", "IMAGE"), ("count", "INT"), ("labels", "STRING")]
 FILEOUT = [("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]
 COF_IN = [("cof", "COF")]
-Y = [890, 1330, 1790, 2230]
+Y = [1110, 1550, 2010, 2450]
 # laid out in the builder's order, left to right then top to bottom:
 # Personality, Appearance (outfits), Appearance (a place), 3D, Voice, Postures, Motion, Files
 node(10, "COFPersonality", (0, Y[0]), (380, 80), inputs=COF_IN, outputs=[("persona", "STRING"), ("language", "STRING")]); link(1, 0, 10, "cof")
@@ -73,16 +79,32 @@ node(41, "PreviewAny", (560, Y[3]), (520, 240), title="Motion: labels", inputs=[
 node(42, "COFFiles", (1240, Y[3]), (380, 130), ["all", "all"], inputs=COF_IN, outputs=[("text", "STRING"), ("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]); link(1, 0, 42, "cof")
 node(43, "PreviewAny", (1800, Y[3]), (440, 320), title="Files: text", inputs=[STR]); link(42, 0, 43, "source")
 
+YM = 3400
+node(7, "MarkdownNote", (0, YM - 470), (2240, 420), [MEMNOTE], title="Read me — Memories (COF 1.1)")
+nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"})
+nodes[-1]["properties"]["cof_readme"] = True
+node(50, "COFMemories", (0, YM), (380, 150), ["all", False, True], inputs=COF_IN, outputs=[("text", "STRING"), ("images", "IMAGE"), ("labels", "STRING"), ("count", "INT")]); link(1, 0, 50, "cof")
+node(51, "PreviewAny", (560, YM), (520, 420), title="Memories: text", inputs=[STR]); link(50, 0, 51, "source")
+node(52, "PreviewImage", (1240, YM), (520, 420), title="Memories: images", inputs=[IMG]); link(50, 1, 52, "images")
+node(53, "PreviewAny", (1800, YM), (440, 200), title="Memories: labels", inputs=[STR]); link(50, 2, 53, "source")
+
+def group(title, x, y, w, h, color="#2a3533"):
+    return {"title": title, "bounding": [x, y, w, h], "color": color, "font_size": 22}
+GROUPS = [group("Load", -20, -60, 420, 330, "#0f6b5c"),
+          group("📝 Personality", -20, Y[0] - 60, 1120, 400), group("🖼️ Appearance — outfits", 1220, Y[0] - 60, 1080, 400),
+          group("🖼️ Appearance — a place", -20, Y[1] - 60, 1120, 520), group("🧊 3D", 1220, Y[1] - 60, 1080, 520),
+          group("👄 Voice", -20, Y[2] - 60, 1120, 400), group("🏃 Postures", 1220, Y[2] - 60, 1080, 400),
+          group("🎥 Motion", -20, Y[3] - 60, 1120, 360), group("📁 Files", 1220, Y[3] - 60, 1080, 360),
+          group("🕰️ Memories (COF 1.1)", -20, YM - 530, 2320, 1010, "#0f6b5c")]
 ui = {"last_node_id": max(n["id"] for n in nodes), "last_link_id": len(links), "nodes": nodes, "links": links,
-      "groups": [{"title": "Load", "bounding": [-20, -60, 420, 330], "color": "#0f6b5c", "font_size": 24},
-                 {"title": "One node per category of the COF builder", "bounding": [-20, 830, 2300, 1780], "color": "#2a3533", "font_size": 24}],
+      "groups": GROUPS,
       "config": {}, "extra": {"ds": {"scale": 0.55, "offset": [60, 80]}}, "version": 0.4}
 (ROOT / "workflows" / "cof_preview.json").write_text(json.dumps(ui, ensure_ascii=False, indent=1), encoding="utf-8")
 
 # API format: same graph without the note and the previews' layout
 NAMES = {"COFLoadCharacter": ["cof_file", "preset", "character", "max_size", "allow_intimate"],
          "COFAppearance": ["kind", "include_offered", "pick", "subject", "angle"], "COFPostures": ["kind", "include_offered", "pick"],
-         "COFVoice": ["sample"], "COFMotion": ["pick"], "COF3D": ["pick"], "COFFiles": ["kind", "pick"]}
+         "COFVoice": ["sample"], "COFMotion": ["pick"], "COF3D": ["pick"], "COFFiles": ["kind", "pick"], "COFMemories": ["pick", "include_personal", "include_text_media"]}
 for n in nodes:
     if n["type"] == "MarkdownNote":
         continue
