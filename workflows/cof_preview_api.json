@@ -99,6 +99,9 @@
     "12",
     0
    ]
+  },
+  "_meta": {
+   "title": "Outfits"
   }
  },
  "20": {
@@ -122,18 +125,9 @@
     "20",
     0
    ]
-  }
- },
- "22": {
-  "class_type": "PreviewAny",
-  "inputs": {
-   "source": [
-    "20",
-    2
-   ]
   },
   "_meta": {
-   "title": "Labels"
+   "title": "Place"
   }
  },
  "23": {
@@ -155,7 +149,7 @@
    ]
   },
   "_meta": {
-   "title": "3D: labels"
+   "title": "3D: files"
   }
  },
  "30": {
@@ -175,6 +169,9 @@
     "30",
     0
    ]
+  },
+  "_meta": {
+   "title": "Voice sample"
   }
  },
  "32": {
@@ -208,6 +205,9 @@
     "33",
     0
    ]
+  },
+  "_meta": {
+   "title": "Postures"
   }
  },
  "40": {
@@ -229,7 +229,7 @@
    ]
   },
   "_meta": {
-   "title": "Motion: labels"
+   "title": "Motion: clips"
   }
  },
  "42": {
@@ -259,6 +259,7 @@
   "class_type": "COFMemories",
   "inputs": {
    "pick": "all",
+   "media": "all",
    "include_personal": false,
    "include_text_media": true,
    "cof": [
@@ -292,11 +293,35 @@
   }
  },
  "53": {
+  "class_type": "PreviewAudio",
+  "inputs": {
+   "audio": [
+    "50",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Memories: sound"
+  }
+ },
+ "54": {
   "class_type": "PreviewAny",
   "inputs": {
    "source": [
     "50",
-    2
+    3
+   ]
+  },
+  "_meta": {
+   "title": "Memories: video and sound files"
+  }
+ },
+ "55": {
+  "class_type": "PreviewAny",
+  "inputs": {
+   "source": [
+    "50",
+    4
    ]
   },
   "_meta": {

@@ -64,7 +64,8 @@ const PICKERS = {
   COF3D: { widget: "pick", node: "media", cat: "volume3d", params: () => ({}), watch: [] },
   COFMotion: { widget: "pick", node: "media", cat: "motion", params: () => ({}), watch: [] },
   COFFiles: { widget: "pick", node: "media", cat: "files", kinds: true, params: n => ({ kind: token(W(n, "kind")?.value) }), watch: ["kind"] },
-  COFMemories: { widget: "pick", node: "memories", params: n => ({ personal: String(!!W(n, "include_personal")?.value) }), watch: ["include_personal"] },
+  COFMemories: { widget: "pick", node: "memories", params: n => ({ personal: String(!!W(n, "include_personal")?.value) }), watch: ["include_personal", "pick"],
+                 extras: [{ widget: "media", node: "memory-media", params: n => ({ personal: String(!!W(n, "include_personal")?.value), pick: token(W(n, "pick")?.value) }) }] },
 };
 
 async function refreshPicker(node) {
@@ -81,6 +82,10 @@ async function refreshPicker(node) {
   const q = new URLSearchParams({ node: spec.node, ...(spec.cat ? { cat: spec.cat } : {}), ...base, ...spec.params(node) });
   const d = await getJSON(`/cof/choices?${q}`);
   if (d?.values) { setValues(W(node, spec.widget), d.values); node.setDirtyCanvas?.(true, true); }
+  for (const x of spec.extras || []) {   // a second list that depends on the first (the images of the chosen memory)
+    const e = await getJSON(`/cof/choices?${new URLSearchParams({ node: x.node, ...base, ...x.params(node) })}`);
+    if (e?.values) { setValues(W(node, x.widget), e.values); node.setDirtyCanvas?.(true, true); }
+  }
 }
 
 function hook(node, names, fn) {

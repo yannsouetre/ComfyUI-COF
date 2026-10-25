@@ -48,54 +48,75 @@ LOAD_OUT = [("cof", "COF"), ("primary_image", "IMAGE"), ("references", "IMAGE"),
 node(1, "COFLoadCharacter", (0, 0), (380, 250), ["clara-mercier.cof", "(default)", "(default)", 1024, False], outputs=LOAD_OUT)
 node(2, "PreviewImage", (560, 0), (300, 440), title="Primary image", inputs=[IMG]); link(1, 1, 2, "images")
 node(3, "PreviewImage", (900, 0), (520, 440), title="References (batch)", inputs=[IMG]); link(1, 2, 3, "images")
-node(4, "PreviewAny", (1800, 0), (420, 210), title="Prompt", inputs=[STR]); link(1, 3, 4, "source")
-node(5, "PreviewAny", (1800, 240), (420, 210), title="Info and rights", inputs=[STR]); link(1, 4, 5, "source")
-node(6, "MarkdownNote", (0, 500), (2240, 520), [NOTE], title="Read me", )
+node(4, "PreviewAny", (1640, 0), (420, 210), title="Prompt", inputs=[STR]); link(1, 3, 4, "source")
+node(5, "PreviewAny", (1640, 240), (420, 210), title="Info and rights", inputs=[STR]); link(1, 4, 5, "source")
+node(6, "MarkdownNote", (0, 480), (2060, 300), [NOTE], title="Read me", )
 nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"})
 nodes[-1]["properties"]["cof_readme"] = True        # web/cof.js shows this note's text at twice the usual size
 
 IMGOUT = [("images", "IMAGE"), ("count", "INT"), ("labels", "STRING")]
 FILEOUT = [("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]
 COF_IN = [("cof", "COF")]
-Y = [1110, 1550, 2010, 2450]
-# laid out in the builder's order, left to right then top to bottom:
-# Personality, Appearance (outfits), Appearance (a place), 3D, Voice, Postures, Motion, Files
-node(10, "COFPersonality", (0, Y[0]), (380, 80), inputs=COF_IN, outputs=[("persona", "STRING"), ("language", "STRING")]); link(1, 0, 10, "cof")
-node(11, "PreviewAny", (560, Y[0]), (520, 320), title="Personality", inputs=[STR]); link(10, 0, 11, "source")
-node(12, "COFAppearance", (1240, Y[0]), (380, 230), ["clothing", True, "mosaic_all", "any", "any"], inputs=COF_IN, outputs=IMGOUT); link(1, 0, 12, "cof")
-node(13, "PreviewImage", (1800, Y[0]), (440, 380), inputs=[IMG]); link(12, 0, 13, "images")
-node(20, "COFAppearance", (0, Y[1]), (380, 230), ["environment", True, "image_001", "any", "any"], inputs=COF_IN, outputs=IMGOUT); link(1, 0, 20, "cof")
-node(21, "PreviewImage", (560, Y[1]), (440, 260), inputs=[IMG]); link(20, 0, 21, "images")
-node(22, "PreviewAny", (560, Y[1] + 290), (520, 130), title="Labels", inputs=[STR]); link(20, 2, 22, "source")
-node(23, "COF3D", (1240, Y[1]), (380, 110), ["all"], inputs=COF_IN, outputs=FILEOUT); link(1, 0, 23, "cof")
-node(24, "PreviewAny", (1800, Y[1]), (440, 160), title="3D: labels", inputs=[STR]); link(23, 1, 24, "source")
-node(30, "COFVoice", (0, Y[2]), (380, 110), ["sample_001"], inputs=COF_IN, outputs=[("audio", "AUDIO"), ("transcript", "STRING"), ("labels", "STRING")]); link(1, 0, 30, "cof")
-node(31, "PreviewAudio", (560, Y[2]), (520, 120), inputs=[("audio", "AUDIO")]); link(30, 0, 31, "audio")
-node(32, "PreviewAny", (560, Y[2] + 150), (520, 150), title="Transcript", inputs=[STR]); link(30, 1, 32, "source")
-node(33, "COFPostures", (1240, Y[2]), (380, 150), ["all", True, "mosaic_all"], inputs=COF_IN, outputs=IMGOUT); link(1, 0, 33, "cof")
-node(34, "PreviewImage", (1800, Y[2]), (440, 360), inputs=[IMG]); link(33, 0, 34, "images")
-node(40, "COFMotion", (0, Y[3]), (380, 110), ["all"], inputs=COF_IN, outputs=FILEOUT); link(1, 0, 40, "cof")
-node(41, "PreviewAny", (560, Y[3]), (520, 240), title="Motion: labels", inputs=[STR]); link(40, 1, 41, "source")
-node(42, "COFFiles", (1240, Y[3]), (380, 130), ["all", "all"], inputs=COF_IN, outputs=[("text", "STRING"), ("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]); link(1, 0, 42, "cof")
-node(43, "PreviewAny", (1800, Y[3]), (440, 320), title="Files: text", inputs=[STR]); link(42, 0, 43, "source")
 
-YM = 3400
-node(7, "MarkdownNote", (0, YM - 470), (2240, 420), [MEMNOTE], title="Read me — Memories (COF 1.1)")
-nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"})
-nodes[-1]["properties"]["cof_readme"] = True
-node(50, "COFMemories", (0, YM), (380, 150), ["all", False, True], inputs=COF_IN, outputs=[("text", "STRING"), ("images", "IMAGE"), ("labels", "STRING"), ("count", "INT")]); link(1, 0, 50, "cof")
-node(51, "PreviewAny", (560, YM), (520, 420), title="Memories: text", inputs=[STR]); link(50, 0, 51, "source")
-node(52, "PreviewImage", (1240, YM), (520, 420), title="Memories: images", inputs=[IMG]); link(50, 1, 52, "images")
-node(53, "PreviewAny", (1800, YM), (440, 200), title="Memories: labels", inputs=[STR]); link(50, 2, 53, "source")
+# ---- layout: groups stacked in two columns; inside a group, nodes at relative positions; group bounds from node sizes
+# (title bar ≈ 30 px above pos, not counted in size; previews under-report their height: give them room)
+TITLE, PAD, GAP, COLX = 30, 24, 70, (0, 1120)
+GROUPS, cursor = [], [-20 + 0, 0]
+col_y = [860, 860]                       # first row of groups, under the Read me
+def place(title, color, items, col):
+    """items: (nid, type, (dx, dy), size, widgets, title, inputs, outputs, link_from) — positions relative to the group's top left."""
+    gx, gy = COLX[col], col_y[col]
+    made = []
+    for nid, typ, (dx, dy), size, widgets, ttl, inputs, outputs, lf in items:
+        n = node(nid, typ, (gx + PAD + dx, gy + TITLE + PAD + dy), size, widgets, title=ttl, inputs=inputs, outputs=outputs)
+        made.append(n)
+        for src, slot, inp in lf:
+            link(src, slot, nid, inp)
+    right = max(n["pos"][0] + n["size"][0] for n in made) + PAD
+    bottom = max(n["pos"][1] + n["size"][1] for n in made) + PAD
+    GROUPS.append({"title": title, "bounding": [gx, gy, right - gx, bottom - gy], "color": color, "font_size": 22})
+    col_y[col] = bottom + GAP
+    return bottom
 
-def group(title, x, y, w, h, color="#2a3533"):
-    return {"title": title, "bounding": [x, y, w, h], "color": color, "font_size": 22}
-GROUPS = [group("Load", -20, -60, 420, 330, "#0f6b5c"),
-          group("📝 Personality", -20, Y[0] - 60, 1120, 400), group("🖼️ Appearance — outfits", 1220, Y[0] - 60, 1080, 400),
-          group("🖼️ Appearance — a place", -20, Y[1] - 60, 1120, 520), group("🧊 3D", 1220, Y[1] - 60, 1080, 520),
-          group("👄 Voice", -20, Y[2] - 60, 1120, 400), group("🏃 Postures", 1220, Y[2] - 60, 1080, 400),
-          group("🎥 Motion", -20, Y[3] - 60, 1120, 360), group("📁 Files", 1220, Y[3] - 60, 1080, 360),
-          group("🕰️ Memories (COF 1.1)", -20, YM - 530, 2320, 1010, "#0f6b5c")]
+S, P, PI = (380, 0), (520, 0), (440, 0)  # widths: source node, text preview, image preview
+def src(nid, typ, dy, h, widgets, outputs, extra_inputs=()):
+    return (nid, typ, (0, dy), (380, h), widgets, None, COF_IN + list(extra_inputs), outputs, [(1, 0, "cof")])
+def txt(nid, dx, dy, h, title, from_, w=520):
+    return (nid, "PreviewAny", (dx, dy), (w, h), None, title, [STR], (), [(from_[0], from_[1], "source")])
+def img(nid, dx, dy, h, title, from_, w=440):
+    return (nid, "PreviewImage", (dx, dy), (w, h), None, title, [IMG], (), [(from_[0], from_[1], "images")])
+
+place("📝 Personality", "#2a3533", [src(10, "COFPersonality", 0, 60, None, [("persona", "STRING"), ("language", "STRING")]), txt(11, 420, 0, 330, "Personality", (10, 0))], 0)
+place("🖼️ Appearance — outfits", "#2a3533", [src(12, "COFAppearance", 0, 200, ["clothing", True, "mosaic_all", "any", "any"], IMGOUT), img(13, 420, 0, 330, "Outfits", (12, 0), 520)], 1)
+place("🖼️ Appearance — a place", "#2a3533", [src(20, "COFAppearance", 0, 200, ["environment", True, "image_001", "any", "any"], IMGOUT), img(21, 420, 0, 290, "Place", (20, 0), 520)], 0)
+place("🧊 3D", "#2a3533", [src(23, "COF3D", 0, 80, ["all"], FILEOUT), txt(24, 420, 0, 120, "3D: files", (23, 1))], 1)
+place("👄 Voice", "#2a3533", [src(30, "COFVoice", 0, 80, ["sample_001"], [("audio", "AUDIO"), ("transcript", "STRING"), ("labels", "STRING")]),
+                             (31, "PreviewAudio", (420, 0), (520, 110), None, "Voice sample", [("audio", "AUDIO")], (), [(30, 0, "audio")]),
+                             txt(32, 420, 150, 110, "Transcript", (30, 1))], 0)
+place("🏃 Postures", "#2a3533", [src(33, "COFPostures", 0, 120, ["all", True, "mosaic_all"], IMGOUT), img(34, 420, 0, 300, "Postures", (33, 0), 520)], 1)
+place("🎥 Motion", "#2a3533", [src(40, "COFMotion", 0, 80, ["all"], FILEOUT), txt(41, 420, 0, 180, "Motion: clips", (40, 1))], 0)
+place("📁 Files", "#2a3533", [src(42, "COFFiles", 0, 100, ["all", "all"], [("text", "STRING"), ("paths", "STRING"), ("labels", "STRING"), ("count", "INT")]), txt(43, 420, 0, 240, "Files: text", (42, 0))], 1)
+
+# memories: full width, under both columns
+col_y[0] = col_y[1] = max(col_y)
+node(7, "MarkdownNote", (COLX[0], col_y[0] + TITLE), (2060, 230), [MEMNOTE], title="Read me — Memories (COF 1.1)")
+nodes[-1].update({"color": "#0f6b5c", "bgcolor": "#18201f"}); nodes[-1]["properties"]["cof_readme"] = True
+MEM_OUT = [("text", "STRING"), ("images", "IMAGE"), ("audio", "AUDIO"), ("media_paths", "STRING"), ("labels", "STRING"), ("count", "INT")]
+ytop = col_y[0] + TITLE + 230 + 40
+items = [(50, "COFMemories", (0, ytop - col_y[0] - TITLE - PAD), (380, 230), ["all", "all", False, True], None, COF_IN, MEM_OUT, [(1, 0, "cof")]),
+         txt(51, 420, ytop - col_y[0] - TITLE - PAD, 380, "Memories: text", (50, 0), 560),
+         img(52, 1020, ytop - col_y[0] - TITLE - PAD, 380, "Memories: images", (50, 1), 480),
+         (53, "PreviewAudio", (1540, ytop - col_y[0] - TITLE - PAD), (480, 110), None, "Memories: sound", [("audio", "AUDIO")], (), [(50, 2, "audio")]),
+         txt(54, 1540, ytop - col_y[0] - TITLE - PAD + 150, 110, "Memories: video and sound files", (50, 3), 480),
+         txt(55, 0, ytop - col_y[0] - TITLE - PAD + 270, 110, "Memories: labels", (50, 4), 380)]
+# the memories group starts at the note: place() puts nodes relative to col_y; the note sits inside the same group
+g0 = len(GROUPS)
+place("🕰️ Memories (COF 1.1)", "#0f6b5c", items, 0)
+g = GROUPS[g0]; g["bounding"][1] = col_y[1] if False else g["bounding"][1]
+# widen the memories group to both columns and include the note (which sits at its top)
+g["bounding"][2] = COLX[1] + 1120 - COLX[0] - 60 + 20
+
+GROUPS.insert(0, {"title": "Load", "bounding": [-20, -60, 420, 330], "color": "#0f6b5c", "font_size": 22})
 ui = {"last_node_id": max(n["id"] for n in nodes), "last_link_id": len(links), "nodes": nodes, "links": links,
       "groups": GROUPS,
       "config": {}, "extra": {"ds": {"scale": 0.55, "offset": [60, 80]}}, "version": 0.4}
@@ -104,7 +125,7 @@ ui = {"last_node_id": max(n["id"] for n in nodes), "last_link_id": len(links), "
 # API format: same graph without the note and the previews' layout
 NAMES = {"COFLoadCharacter": ["cof_file", "preset", "character", "max_size", "allow_intimate"],
          "COFAppearance": ["kind", "include_offered", "pick", "subject", "angle"], "COFPostures": ["kind", "include_offered", "pick"],
-         "COFVoice": ["sample"], "COFMotion": ["pick"], "COF3D": ["pick"], "COFFiles": ["kind", "pick"], "COFMemories": ["pick", "include_personal", "include_text_media"]}
+         "COFVoice": ["sample"], "COFMotion": ["pick"], "COF3D": ["pick"], "COFFiles": ["kind", "pick"], "COFMemories": ["pick", "media", "include_personal", "include_text_media"]}
 for n in nodes:
     if n["type"] == "MarkdownNote":
         continue

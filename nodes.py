@@ -526,6 +526,21 @@ class COFFiles:
         return ("\n\n".join(texts), "\n".join(paths), labels, len(items))
 
 
+def _memory_media(c: COF, cof: dict, chosen: list[dict]) -> list[tuple[dict, dict]]:
+    """(memory, asset) for every media of the chosen memories — none of an explicit memory without the opt-in (RFC 0002 § 5)."""
+    out = []
+    for m in chosen:
+        if m["node"].get("explicit") and not cof["allow_intimate"]:
+            continue
+        out += [(m, c.assets.get(a) or {}) for a in m["media"] if c.assets.get(a)]
+    return out
+
+
+def _memory_image_choices(pairs: list[tuple[dict, dict]]) -> list[str]:
+    imgs = [(m, a) for m, a in pairs if str(a.get("mediaType") or "").startswith("image/") and not a.get("derived_from")]
+    return [f"all{SEP}{len(imgs)} image{'s' if len(imgs) != 1 else ''}"] + [f"image_{i + 1:03d}{SEP}{english(m['label'])} · {Path(a.get('path') or a['id']).name}" for i, (m, a) in enumerate(imgs)]
+
+
 class COFMemories:
     """Memories (COF 1.1): the preset's memories in timeline order — the gists as one text for a language model,
     the images of the memories as a batch (a memory's explicit media only when the loader allows adult content),
@@ -535,22 +550,26 @@ class COFMemories:
     def INPUT_TYPES(cls):
         return {"required": {"cof": ("COF",),
                              "pick": (["all"] + [f"memory_{i:03d}" for i in range(1, 65)], {"default": "all", "tooltip": "the memories by name, oldest first; all = every one"})},
-                "optional": {"include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the memories marked personal (a user's data, never shared by default)"}),
+                "optional": {"media": (["all"] + [f"image_{i:03d}" for i in range(1, 25)], {"default": "all", "tooltip": "one image of the chosen memory (image_001…), or all of them as a batch"}),
+                             "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the memories marked personal (a user's data, never shared by default)"}),
                              "include_text_media": ("BOOLEAN", {"default": True, "tooltip": "append the short text media of each memory (remembered lines) after its gist"})}}
 
     @classmethod
-    def VALIDATE_INPUTS(cls, pick):
+    def VALIDATE_INPUTS(cls, pick, media="all"):
         return True
 
-    RETURN_TYPES = ("STRING", "IMAGE", "STRING", "INT")
-    RETURN_NAMES = ("text", "images", "labels", "count")
+    RETURN_TYPES = ("STRING", "IMAGE", "AUDIO", "STRING", "STRING", "INT")
+    RETURN_NAMES = ("text", "images", "audio", "media_paths", "labels", "count")
     OUTPUT_TOOLTIPS = ("the memories as text, oldest first: a heading per memory with its when-marker, then the gist (in the preset's language) and its remembered lines",
-                       "the images of the chosen memories (a blank image when there is none)", "one line per memory: its name and when", "how many memories the preset lists")
+                       "the images of the chosen memories, or the one image chosen in `media` (a blank image when there is none)",
+                       "the first sound of the chosen memories (silence when there is none) — for a voice or lip-sync node",
+                       "the sound and video files of the chosen memories, extracted under input/cof/ — one path per line, for a node that loads a video or a sound from a path",
+                       "one line per memory: its name and when", "how many memories the preset lists")
     FUNCTION = "recall"
     CATEGORY = "COF"
     DESCRIPTION = "The character's memories (COF 1.1): gists in timeline order for a prompt, and their images."
 
-    def recall(self, cof, pick="all", include_personal=False, include_text_media=True):
+    def recall(self, cof, pick="all", media="all", include_personal=False, include_text_media=True):
         c, pid = cof["cof"], cof["preset"]
         if not hasattr(c, "memories"):          # the loader came from another copy of ComfyUI-COF (0.5.0 still in custom_nodes): reopen with this one
             c = COF(c.path)
@@ -568,19 +587,49 @@ class COFMemories:
             lines.append(f"### {m['label']}  ·  {m['when']}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
             lines.append(m["gist"].strip())
             if n.get("explicit") and not cof["allow_intimate"]:
-                media = []                                                   # RFC 0002 § 5: never without the opt-in
+                media_ = []                                                  # RFC 0002 § 5: never without the opt-in
             else:
-                media = [c.assets.get(a) or {} for a in m["media"]]
+                media_ = [c.assets.get(a) or {} for a in m["media"]]
             if include_text_media:
-                for a in media:
+                for a in media_:
                     if str(a.get("mediaType") or "").startswith("text/") and (not a.get("language") or a["language"].split("-")[0] == m["lang"].split("-")[0]):
                         try:
                             lines.append(c.read_text(a["id"]).strip())
                         except COFError:
                             pass
-            aids += [a["id"] for a in media if str(a.get("mediaType") or "").startswith("image/") and not a.get("derived_from")]
+            aids += [a["id"] for a in media_ if str(a.get("mediaType") or "").startswith("image/") and not a.get("derived_from")]
             lines.append("")
-        return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), labels, len(mems))
+        t = _token(media)
+        m_ = re.fullmatch(r"image_(\d+)", t)
+        if m_:                                                               # one image of the chosen memories
+            k = int(m_.group(1))
+            if not 1 <= k <= len(aids):
+                raise COFError(f"{t}: the chosen memories have {len(aids)} image(s)")
+            aids = [aids[k - 1]]
+        # the other media: sounds, videos and texts, extracted for the nodes that read files; the first sound as AUDIO
+        pairs = _memory_media(c, cof, chosen)
+        dest = Path(folder_paths.get_input_directory() if folder_paths else ".") / "cof" / f"cof-{_slug(c.path.stem)}" / "memories"
+        paths, audio = [], None
+        for m, a in pairs:
+            mt = str(a.get("mediaType") or "")
+            if not (mt.startswith("audio/") or mt.startswith("video/")):   # images are the batch; texts are in the text output
+                continue
+            try:
+                f = c.extract(a["id"], dest / m["id"])
+            except COFError as ex:
+                print(f"[COF] memory media {a.get('path')}: {ex}")
+                continue
+            paths.append(str(f))
+            if audio is None and mt.startswith("audio/"):
+                try:
+                    wave, sr = _load_audio(str(f))
+                    audio = {"waveform": wave.unsqueeze(0), "sample_rate": sr}
+                except Exception as ex:
+                    print(f"[COF] memory sound {a.get('path')}: {ex}")
+        if audio is None:
+            import torch
+            audio = {"waveform": torch.zeros((1, 1, 44100)), "sample_rate": 44100}
+        return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), audio, "\n".join(paths), labels, len(mems))
 
 
 NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFPersonality": COFPersonality, "COFAppearance": COFAppearance,
@@ -650,6 +699,11 @@ def _routes():
             elif node == "memories":
                 mems = c.memories(pid, q.get("personal") == "true")
                 values = [f"all{SEP}{len(mems)} memor{'y' if len(mems) == 1 else 'ies'}"] + [f"memory_{i + 1:03d}{SEP}{english(m['label'])} — {m['when']}" for i, m in enumerate(mems)]
+            elif node == "memory-media":
+                mems = c.memories(pid, q.get("personal") == "true")
+                pk = _token(q.get("pick", "all"))
+                chosen = _select(mems, "all" if pk == "all" else pk, "memory") if mems else []
+                values = _memory_image_choices(_memory_media(c, {"allow_intimate": q.get("allow") == "true"}, chosen))
             elif node == "voice":
                 values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":
