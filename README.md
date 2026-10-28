@@ -42,7 +42,7 @@ The **prompt** combines the trigger words of the preset's LoRA, the character's 
 
 - **Adult content is never output by default.** Variants marked `nudity` (no genitals) need `allow_intimate` on and a preset of 18 or over; intimate variants also need the preset's effective `allowSexualUsage`. For a real person, both need their consent in the file.
 - Using the **LoRA, references or voice of a real person** without a consent record in the file is **warned** (console and `info` output): you are responsible for that use.
-- Only images, audio and `.safetensors` are read or extracted; nothing in the file is executed. A `.safetensors` with a broken header is refused.
+- Only images, audio, video and motion clips, 3D files, text files of the Files category and `.safetensors` are read or extracted — never a script, and nothing in the file is executed. A `.safetensors` with a broken header is refused; extraction paths are built from slugged ids, never from paths found in the file.
 - Read the **rights** in the `info` output, or open the file in the explorer: commercial use, redistribution, voice cloning and training are the author's call.
 
 ## Install
@@ -78,7 +78,7 @@ The workflow opens with a **Read me** note, under the loader, that sums this up.
 cd tests && python -m pytest test_nodes.py --import-mode=importlib -c /dev/null
 ```
 
-The tests stub `torch` and `comfy`. They need four sample files in `tests/samples/`:
+The tests stub `torch` and `comfy`. They need five sample files in `tests/samples/`:
 - `clara-mercier.cof` and `clara-martien.cof`, from `viewer/samples/` of the COF repository;
 - `clara-memories.cof`, the COF repository's `spec/examples/10-clara-mercier` (1.1, with memories) packed;
 - `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
@@ -86,7 +86,8 @@ The tests stub `torch` and `comfy`. They need four sample files in `tests/sample
 
 ## Changes
 
-- **0.6.0** — **COF Memories** gains a **media** list (one image of the chosen memory, `image_001`…, or all as a batch), an **audio** output (the first sound of the chosen memories, silence otherwise) and a **media_paths** output (the sound and video files of the memories extracted under `input/cof/<file>/memories/<id>/`, one path per line — feed a node that loads a video or a sound from a path, or pick them from `input/` after a refresh); the preview workflow previews both.
+- **0.6.0** — review of 28 October: the adult rules read the preset's **safety age** — its lowest age including the ages its memories carry (RFC 0002 § 5.2: a preset listing a memory that shows the character as a minor is a minor preset) — while the prompt and the summary keep the age shown; a memory counts as explicit through the variant's 1.0 `nudity` flag and through the node it borrows its media from (`media_from`), not only through its own `explicit`; the **media** list of COF Memories is built with the same effective adult flag as the node (no explicit image offered that the node then refuses); memory media are extracted under a slugged id, never a path taken from the file; a media listed in the manifest but missing from the archive, a damaged image or an invalid manifest give a clean `COFError` or a console line instead of a Python exception.
+- **0.6.0** — **COF Memories** gains a **media** list (one image of the chosen memory, `image_001`…, or all as a batch), an **audio** output (the first sound of the chosen memories, silence otherwise) and a **media_paths** output (the sound and video files of the memories extracted under `input/cof/cof-<file>/memories/<id>/`, one path per line — feed a node that loads a video or a sound from a path, or pick them from `input/` after a refresh); the preview workflow previews both.
 - **0.6.0** — the preview workflow is laid out in **two columns of groups**, one per category, plus a full-width group for Memories, each collapsible from the dot at its top left; nodes sit on a column and row grid computed from their sizes (title bar and preview room included), the groups fit their nodes, two Read me notes (general, and Memories) are sized to their text; the loader's file list shows `.cof` files only (the clips the Motion node extracts into `models/cof/<name>/` no longer appear in it); COF Memories reopens the file with these nodes when the loader came from an older copy of ComfyUI-COF left in `custom_nodes` (and says so in the console — keep one copy).
 - **0.6.0** — the preset's **default prompts** (COF 1.1, RFC 0003 § 4 bis): COF Load Character's `prompt` starts with the preset's scene description when it has one, COF Personality ends with its opening line; the character's gender (RFC 0003) opens the prompt ("woman, Clara Mercier, …"); a preset's identity override (name, summary) is what the prompt and the info describe.
 - **0.6.0** — **COF Personality** also states the archetype and the narrative role when the preset's `psyche.json` carries them (COF 1.1, RFC 0003: "Archetype: the Creator (secondary: Explorer)", "Narrative role: protagonist").

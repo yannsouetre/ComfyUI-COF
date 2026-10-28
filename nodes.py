@@ -131,7 +131,7 @@ def _select(items: list, pick: str, what: str = "image"):
     if m:
         k = int(m.group(1))
         if not 1 <= k <= len(items):
-            raise COFError(f"{t}: this preset has {len(items)} {what}{'s' if len(items) != 1 else ''} — choose again in the list")
+            raise COFError(f"{t}: this preset has {len(items)} {what if len(items) == 1 else 'memories' if what == 'memory' else what + 's'} — choose again in the list")
         return [items[k - 1]]
     raise COFError(f"unknown choice '{pick}'")
 
@@ -198,7 +198,11 @@ def _images(cof: COF, aids: list[str]) -> list[Image.Image]:
     for aid in aids:
         data = cof.asset_bytes(aid)
         if data:
-            out.append(Image.open(io.BytesIO(data)))
+            try:
+                im = Image.open(io.BytesIO(data)); im.load()             # load now: a truncated body fails here, not in the tensor conversion
+                out.append(im)
+            except Exception as ex:                                      # a damaged or unsupported image: skipped, said once
+                print(f"[COF] image {(cof.assets.get(aid) or {}).get('path', aid)}: {ex}")
     return out
 
 
@@ -530,7 +534,7 @@ def _memory_media(c: COF, cof: dict, chosen: list[dict]) -> list[tuple[dict, dic
     """(memory, asset) for every media of the chosen memories — none of an explicit memory without the opt-in (RFC 0002 § 5)."""
     out = []
     for m in chosen:
-        if m["node"].get("explicit") and not cof["allow_intimate"]:
+        if m.get("explicit", m["node"].get("explicit")) and not cof["allow_intimate"]:
             continue
         out += [(m, c.assets.get(a) or {}) for a in m["media"] if c.assets.get(a)]
     return out
@@ -582,11 +586,11 @@ class COFMemories:
             n = m["node"]
             marks = [x for x in (n.get("nature") or []) if x != "experienced"]
             marks += [x for x in (n.get("disclosure"), n.get("fidelity")) if x and x not in ("open", "clear")]
-            if n.get("explicit"):
+            if m.get("explicit", n.get("explicit")):
                 marks.append("explicit")
             lines.append(f"### {m['label']}  ·  {m['when']}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
             lines.append(m["gist"].strip())
-            if n.get("explicit") and not cof["allow_intimate"]:
+            if m.get("explicit", n.get("explicit")) and not cof["allow_intimate"]:
                 media_ = []                                                  # RFC 0002 § 5: never without the opt-in
             else:
                 media_ = [c.assets.get(a) or {} for a in m["media"]]
@@ -615,7 +619,7 @@ class COFMemories:
             if not (mt.startswith("audio/") or mt.startswith("video/")):   # images are the batch; texts are in the text output
                 continue
             try:
-                f = c.extract(a["id"], dest / m["id"])
+                f = c.extract(a["id"], dest / _slug(m["id"]))                # the id is manifest data: slugged, never a path
             except COFError as ex:
                 print(f"[COF] memory media {a.get('path')}: {ex}")
                 continue
@@ -703,7 +707,7 @@ def _routes():
                 mems = c.memories(pid, q.get("personal") == "true")
                 pk = _token(q.get("pick", "all"))
                 chosen = _select(mems, "all" if pk == "all" else pk, "memory") if mems else []
-                values = _memory_image_choices(_memory_media(c, {"allow_intimate": q.get("allow") == "true"}, chosen))
+                values = _memory_image_choices(_memory_media(c, {"allow_intimate": c.intimate_allowed(pid, q.get("allow") == "true")}, chosen))
             elif node == "voice":
                 values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":

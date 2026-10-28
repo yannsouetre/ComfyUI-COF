@@ -13,7 +13,6 @@ No file is executed; only JSON, images, audio and .safetensors are read or extra
 """
 from __future__ import annotations
 
-import io
 import json
 import re
 import zipfile
@@ -45,12 +44,18 @@ EXTRACTABLE = (".safetensors", ".wav", ".mp3", ".ogg", ".opus", ".flac", ".m4a",
                ".bvh", ".vrma", ".vrm", ".glb", ".gltf", ".obj", ".fbx", ".stl", ".3mf", ".ply", ".duf", ".mp4", ".webm")
 
 
+_EN = re.compile(r"\b(the|a|an|of|and|my|our|in|at|on|with|for|first|years|house|morning|night|day|wedding|family)\b", re.I)
+
+
 def english(label: str) -> str:
-    """Bilingual labels are written 'Français / English' or 'English / Français': keep the English half."""
+    """Bilingual labels are written 'Français / English' or 'English / Français': keep the English half
+    (French marks count against a half, English marks for it; a tie keeps the second half, the usual place of the English)."""
     if not label or " / " not in label:
         return label or ""
     parts = [x.strip() for x in label.split(" / ") if x.strip()]
-    return min(parts, key=lambda x: len(_FR.findall(x))) if parts else label
+    if not parts:
+        return label
+    return min(reversed(parts), key=lambda x: len(_FR.findall(x)) - len(_EN.findall(x)))
 
 
 def visual_summary(summary: str, name: str = "") -> str:
@@ -80,7 +85,12 @@ class COF:
             raise COFError(f"{self.path.name}: manifest.json missing")
         if names and names[0] == "mimetype" and self.zip.read("mimetype").decode("ascii", "ignore").strip() != MIMETYPE:
             raise COFError(f"{self.path.name}: wrong mimetype")
-        self.m = json.loads(self.zip.read("manifest.json").decode("utf-8"))
+        try:
+            self.m = json.loads(self.zip.read("manifest.json").decode("utf-8"))
+        except ValueError as ex:
+            raise COFError(f"{self.path.name}: manifest.json is not valid JSON ({ex})") from ex
+        if not isinstance(self.m, dict):
+            raise COFError(f"{self.path.name}: manifest.json is not an object")
         ver = str(self.m.get("cof", ""))
         if not re.fullmatch(r"1\.\d+", ver):
             raise COFError(f"{self.path.name}: format {ver or '?'} — run `cof migrate` (COF 1.x expected)")
@@ -88,7 +98,10 @@ class COF:
 
     # ---------- raw access ----------
     def read(self, rel: str) -> bytes:
-        return self.zip.read(rel)
+        try:
+            return self.zip.read(rel)
+        except KeyError as ex:
+            raise COFError(f"{self.path.name}: {rel} is listed in the manifest but missing from the archive") from ex
 
     def json_at(self, rel: str):
         try:
@@ -242,8 +255,18 @@ class COF:
         rights = (self.identities().get(iid) or {}).get("rights") or self.m.get("rights") or {}
         return {**(rights.get("permissions") or {}), **(self.presets[pid].get("permissions_override") or {})}
 
+    def safety_age(self, pid: str) -> float | None:
+        """The preset's lowest age for the adult rules: `preset_age` plus the ages carried by its memories (RFC 0002 § 5.2 —
+        a preset that lists a memory showing the character as a minor is a minor preset). `preset_age` alone is the age
+        shown (the prompt, the summary): a 65-year-old preset remembering her wedding at 31 is still shown at 65."""
+        ages = [self.preset_age(pid)]
+        for lists in (self.slots(pid), self.offered(pid)):
+            ages += [age_years(v.get("age")) for v in self.resolved(lists).get("memories", [])]
+        ages = [a for a in ages if a is not None]
+        return min(ages) if ages else None
+
     def intimate_allowed(self, pid: str, requested: bool) -> bool:
-        age = self.preset_age(pid)
+        age = self.safety_age(pid)
         I = self.identity(self.owner(pid))
         if I.get("fictional") is False:                    # a real person: only with their explicit consent (scope intimate)
             cons = I.get("consent") or {}
@@ -254,7 +277,7 @@ class COF:
     def nudity_allowed(self, pid: str, requested: bool) -> bool:
         """Nudity without genitals (variants marked `nudity`): only on request, in a preset of 18 or over, and for a
         real person only with consent scope nudity or intimate."""
-        age = self.preset_age(pid)
+        age = self.safety_age(pid)
         if not (requested and age is not None and age >= ADULT):
             return False
         I = self.identity(self.owner(pid))
@@ -528,6 +551,21 @@ class COF:
             cur = str(v.get("media_from") or "").partition("/")[2]
         return []
 
+    def memory_explicit(self, vid: str) -> bool:
+        """Explicit media (RFC 0002 § 5): the node's `explicit`, the variant's 1.0 `nudity` flag, or those of the node the
+        media are borrowed from (`media_from`) — a borrower never shows more than its lender allows."""
+        seen, cur = set(), vid
+        while cur and cur not in seen:
+            seen.add(cur)
+            v = self.variant("memories", cur) or {}
+            n = self.json_at(v.get("memory")) if v.get("memory") else None
+            if v.get("nudity") is True or (isinstance(n, dict) and n.get("explicit")):
+                return True
+            if v.get("media"):
+                return False
+            cur = str(v.get("media_from") or "").partition("/")[2]
+        return False
+
     def memories(self, pid: str, include_personal: bool = False) -> list[dict]:
         """The preset's memories in timeline order (by age, else by date and the birth year the file implies, else
         after the node they link to, undated last): [{id, kind, label, node, lang, gist, when, media}]."""
@@ -594,5 +632,5 @@ class COF:
                     fig = f"{fig}, {w['date']}" if fig else w["date"]
             out.append({"id": v, "kind": rv.get("kind"), "label": rv.get("label") or v, "node": n, "lang": lang,
                         "gist": g.get(lang, ""), "when": f"{lab} ({fig})" if lab and fig else (lab or fig or "undated"),
-                        "media": self.memory_media(v)})
+                        "media": self.memory_media(v), "explicit": self.memory_explicit(v)})
         return out

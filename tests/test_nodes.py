@@ -208,16 +208,16 @@ def test_memories_node(pack):
     personal memories left out unless asked, explicit media never without the opt-in."""
     nodes, _ = pack
     d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "fr-agent", "", 256)[0]
-    text, imgs, labels, n = nodes.COFMemories().recall(d)
+    text, imgs, _, _, labels, n = nodes.COFMemories().recall(d)
     assert n == 5 and labels.startswith("memory_001: ") and labels.index("grand") < labels.index("agence") < labels.index("Martian")
     assert "grand-mère" in text and "age 8" in text and text.index("huit ans") < text.index("Martien") and "guarded" in text and "fragment" in text
     assert "Mange d'abord" in text and "Eat first" not in text          # the French text media only (preset language)
     assert imgs.shape[0] >= 9                                           # three + two + two + three images, no poster
-    text1, imgs1, _, _ = nodes.COFMemories().recall(d, "memory_002")
+    text1, imgs1 = nodes.COFMemories().recall(d, "memory_002")[:2]
     assert "agence" in text1 and imgs1.shape[0] == 1 and imgs1.shape[1] == 64   # the period has no image: a blank one
     d_en = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "en-agent", "", 256)[0]
     assert "Eat first" in nodes.COFMemories().recall(d_en)[0]
     # a 1.0 file: no memory, no crash
     d0 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "", "", 256)[0]
-    t0, i0, l0, n0 = nodes.COFMemories().recall(d0)
+    t0, i0, _, _, l0, n0 = nodes.COFMemories().recall(d0)
     assert n0 == 0 and t0 == "" and l0.startswith("(this preset has no memory)")
