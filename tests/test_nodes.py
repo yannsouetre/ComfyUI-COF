@@ -130,8 +130,8 @@ def test_routes_fill_the_dropdowns(pack, monkeypatch):
     web = types.ModuleType("aiohttp.web"); web.json_response = lambda data, status=200: (status, data)
     aiohttp = types.ModuleType("aiohttp"); aiohttp.web = web
     monkeypatch.setitem(sys.modules, "server", server); monkeypatch.setitem(sys.modules, "aiohttp", aiohttp); monkeypatch.setitem(sys.modules, "aiohttp.web", web)
-    clara = str(SAMPLES / "clara-mercier.cof")
-    monkeypatch.setattr(nodes, "_files", lambda: [clara])
+    clara, psy = str(SAMPLES / "clara-mercier.cof"), str(SAMPLES / "clara-psyche.cof")
+    monkeypatch.setattr(nodes, "_files", lambda: [clara, psy])
     nodes._routes()
     call = lambda path, **q: asyncio.run(routes[path](types.SimpleNamespace(query=q)))
     st, d = call("/cof/info", file=clara)
@@ -158,6 +158,10 @@ def test_routes_fill_the_dropdowns(pack, monkeypatch):
     assert st == 200 and d["values"][0] == "all — 3 files"
     st, d = call("/cof/choices", node="images", cat="voice", file=clara, preset="")
     assert st == 400
+    st, d = call("/cof/choices", node="psyche", file=psy, preset="fr", personal="false")
+    assert st == 200 and d["values"] == ["(preset) — fr", "en — 22 nodes", "fr — 22 nodes"]
+    st, d = call("/cof/choices", node="psyche", file=clara, preset="")
+    assert st == 200 and len(d["values"]) == 1 and d["values"][0].startswith("(preset) — ")
 
 
 def test_preset_without_voice_and_other_ages(pack):
@@ -221,3 +225,104 @@ def test_memories_node(pack):
     d0 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-mercier.cof"), "", "", 256)[0]
     t0, i0, _, _, l0, n0 = nodes.COFMemories().recall(d0)
     assert n0 == 0 and t0 == "" and l0.startswith("(this preset has no memory)")
+
+
+SOUL_ORDER = ["Wound", "Values", "Beliefs", "Wants", "Needs", "Fears", "Stances", "Tastes", "Habits", "Contradictions"]
+
+
+def test_psyche_node(pack):
+    """COF Psyche (1.2): Clara's 22 nodes in cof-cli's "Who she is" order, the three formats, the positions, focus on the
+    Martian (the stance and the core nodes), max_nodes, the preset's language or the one asked, the persona clause;
+    a 1.1 file gives empty outputs and no error."""
+    nodes, _ = pack
+    d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "", "", 256)[0]
+    assert d["preset"] == "default"
+    soul, pos, n = nodes.COFPsyche().render(d, "soul")
+    assert n == 22 and soul.startswith("## Who she is\n")
+    assert [l[4:] for l in soul.splitlines() if l.startswith("### ")] == SOUL_ORDER
+    assert "- Lightness: do less, better — a page should cost" in soul            # strength 95: the whole gist
+    assert "- Accept being helped\n" in soul and "studio is not one person" not in soul   # strength 65: a short clause
+    assert "- If I slow down, I disappear  ·  lie" in soul and "about: the Martian" in soul and "does not tell" not in soul
+    assert pos.splitlines() == ["toward the Martian: protective curiosity — the one visitor who looked at the sheep before the screens.",
+                                "toward design agencies: no rancour, no return."]
+    lines, pos2, n2 = nodes.COFPsyche().render(d, "lines")
+    rows = lines.splitlines()
+    assert n2 == 22 and len(rows) == 22 and rows[0].startswith("wound · Four years") and rows[-1].startswith("contradiction · ") and pos2 == pos
+    assert "need · Accept being helped — a studio is not one person at night." in rows      # lines: always the whole gist
+    assert [r.split(" · ")[0] for r in rows] == sorted((r.split(" · ")[0] for r in rows), key=nodes.PSYCHE_ORDER.index)
+    prose = nodes.COFPsyche().render(d, "prose")[0]
+    assert prose.startswith("Values: Lightness: do less, better; Accessibility") and prose.index("Toward the Martian: protective curiosity; toward design agencies: no rancour") < prose.index("Wound:")
+    assert "\n" not in prose and "sheep before the screens" not in prose              # one paragraph, short clauses
+    # focus: "what she thinks of the Martian" = the stance hanging on that memory, plus every core node
+    t, p, nf = nodes.COFPsyche().render(d, "lines", focus="the Martian")
+    assert nf == 6 and {r.split(" · ")[0] for r in t.splitlines()} == {"wound", "value", "belief", "stance", "habit"}
+    assert "about: the Martian" in t and "agencies" not in t and "Four years of shipping" in t and p == pos.splitlines()[0]
+    assert nodes.COFPsyche().render(d, "lines", focus="martien")[2] == 6             # accents and case do not matter
+    assert nodes.COFPsyche().render(d, "lines", focus="grandmother")[2] == 7           # val4 and taste1 hang on ev1
+    # max_nodes: the strongest, core first
+    t5, _, n5 = nodes.COFPsyche().render(d, "lines", max_nodes=5)
+    assert n5 == 5 and t5.count("\n") == 4 and "Four years" in t5 and "Lightness" in t5 and "structure her ideas" in t5
+    # languages: the preset's, or the one asked
+    dfr = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "fr", "", 256)[0]
+    sfr, pfr, _ = nodes.COFPsyche().render(dfr, "soul")
+    assert sfr.startswith("## Qui elle est\n") and "### Valeurs\n- La légèreté : faire moins, mieux" in sfr and pfr.startswith("envers le Martien: une curiosité protectrice")
+    assert "La légèreté" in nodes.COFPsyche().render(d, "soul", language="fr")[0] and "Lightness" in nodes.COFPsyche().render(dfr, "lines", language="en — 22 nodes")[0]
+    assert nodes._psyche_language_choices(d["cof"], "default") == ["(preset) — en", "en — 22 nodes", "fr — 22 nodes"]
+    # the 12-year-old holds three nodes and no stance
+    d12 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "en-12", "", 256)[0]
+    t12, p12, n12 = nodes.COFPsyche().render(d12, "soul")
+    assert n12 == 3 and p12 == "" and "Empathy before cleverness" in t12 and "agency" not in t12.lower()
+    # the persona text gains the strongest value and stance, one short clause each
+    persona = nodes.COFPersonality().text(d)[0]
+    assert "\n\nCore value: Lightness: do less, better\n\nStance toward design agencies: no rancour, no return" in persona
+    assert persona.index("Long term") < persona.index("Core value") < persona.index("Opening line")
+    dag = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "en-agent", "", 256)[0]
+    assert nodes.COFPersonality().text(dag)[0].index("Narrative role") < nodes.COFPersonality().text(dag)[0].index("Core value")
+    assert nodes.COFPersonality().text(d12)[0].endswith("Core value: Empathy before cleverness")
+    # a 1.1 file: no psyche, empty outputs, no persona clause
+    d11 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "fr-agent", "", 256)[0]
+    assert nodes.COFPsyche().render(d11, "soul") == ("", "", 0) and nodes.COFPsyche().render(d11, "prose", focus="Martien") == ("", "", 0)
+    assert "Core value" not in nodes.COFPersonality().text(d11)[0]
+    assert "COFPsyche" in nodes.NODE_CLASS_MAPPINGS and nodes.NODE_DISPLAY_NAME_MAPPINGS["COFPsyche"].endswith(" COF Psyche")
+
+
+def test_psyche_risk_secret_personal(pack):
+    """A synthetic dangerous belief (and the contradiction that leans on it) is dropped by default and kept with a marker on
+    request; the file-level flag shows in the info; a secret node is never output unless asked; a personal node neither."""
+    nodes, _ = pack
+    from comfyui_cof.cof_reader import COF
+    c = COF(SAMPLES / "clara-psyche.cof")
+    V = c.m["elements"]["psyche"]["variants"]
+    V["bel9"] = {"kind": "belief", "label": "Others are tools", "node": "elements/psyche/bel9/psyche-node.json", "identity": "id1"}
+    V["contra9"] = {"kind": "contradiction", "label": "Tools and empathy", "node": "elements/psyche/contra9/psyche-node.json", "identity": "id1"}
+    c.m["presets"]["default"]["slots"]["psyche"] += ["bel9", "contra9"]
+    c.m["tags"]["content"] = ["psyche-dangerous"]
+    synth = {"elements/psyche/bel9/psyche-node.json": {"gist": {"en": "Other people are tools to be used."}, "strength": 99, "stability": "core", "risk": "dangerous"},
+             "elements/psyche/contra9/psyche-node.json": {"gist": {"en": "Uses people, preaches empathy."}, "strength": 60,
+                                                           "links": [{"to": "psyche/bel9", "type": "conflicts"}, {"to": "psyche/val4", "type": "conflicts"}]}}
+    orig = c.json_at
+    c.json_at = lambda rel: synth[rel] if rel in synth else orig(rel)
+    cof = {"cof": c, "preset": "default", "allow_intimate": False, "max_size": 256}
+    t, _, n = nodes.COFPsyche().render(cof, "lines")
+    assert n == 22 and "tools" not in t and "Uses people" not in t                    # the contradiction lost a side: gone too
+    t2, _, n2 = nodes.COFPsyche().render(cof, "lines", drop_dangerous=False)
+    assert n2 == 24 and "belief · Other people are tools to be used.  ·  dangerous" in t2 and "contradiction · Uses people, preaches empathy." in t2
+    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1, drop_dangerous=False)[0].startswith("belief · Other people")   # core, strength 99
+    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1)[0].startswith("value · Lightness")
+    assert "content: psyche-dangerous (a psyche node that would make the character harmful" in c.summary("default")
+    # a secret contradiction: left out, said once in the soul format, never in lines or prose; shown and marked on request
+    synth["elements/psyche/contra1/psyche-node.json"] = dict(orig("elements/psyche/contra1/psyche-node.json"), disclosure="secret")
+    s, _, ns = nodes.COFPsyche().render(cof, "soul")
+    assert ns == 21 and "Preaches slowness" not in s and s.rstrip().endswith("There are things she does not tell.")
+    l, _, nl = nodes.COFPsyche().render(cof, "lines")
+    assert nl == 21 and "Preaches slowness" not in l and "does not tell" not in l and "Preaches slowness" not in nodes.COFPsyche().render(cof, "prose")[0]
+    s2, _, ns2 = nodes.COFPsyche().render(cof, "soul", include_secret=True)
+    assert ns2 == 22 and "- Preaches slowness, works at night  ·  secret" in s2 and "does not tell" not in s2
+    # an inappropriate node is kept, with a marker; a personal one is a user's data
+    synth["elements/psyche/taste2/psyche-node.json"] = dict(orig("elements/psyche/taste2/psyche-node.json"), risk="inappropriate", visibility="personal")
+    l3 = nodes.COFPsyche().render(cof, "lines")[0]
+    assert "Hates notifications" not in l3
+    l4 = nodes.COFPsyche().render(cof, "lines", include_personal=True)[0]
+    assert "taste · Hates notifications and interfaces that blink at you.  ·  inappropriate" in l4
+    # the persona clause never takes a dangerous or secret node
+    assert "Core value: Lightness" in c.persona("default")[0] and "tools" not in c.persona("default")[0]

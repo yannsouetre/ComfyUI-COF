@@ -1,6 +1,6 @@
 """ComfyUI nodes for COF characters. COF Load Character covers most workflows; then one node per category of
-the COF builder (Personality, Appearance, Identity weights, 3D, Voice, Postures, Motion, Files), each taking the
-loader's `cof` output."""
+the COF builder (Personality, Appearance, Identity weights, 3D, Voice, Postures, Motion, Files), plus Memories (COF 1.1)
+and Psyche (COF 1.2), each taking the loader's `cof` output."""
 from __future__ import annotations
 
 import io
@@ -16,7 +16,7 @@ try:                                   # inside ComfyUI
 except ImportError:                    # tests outside ComfyUI
     folder_paths = None
 
-from .cof_reader import COF, COFError, REF_KINDS, english
+from .cof_reader import COF, COFError, FULL_LINE_STRENGTH, PSYCHE_ORDER, REF_KINDS, english, short_clause, strip_toward
 
 REFS = "references (face, reference set, sheet, body)"
 # the variant types of each category, in the builder's order; "all" (and, for appearance, "references") come first
@@ -28,7 +28,7 @@ KINDS = {
 }
 ALWAYS = {"appearance": 2, "posture": 1, "files": 1}       # how many leading choices are always listed
 # builder icons (the builder's LoRA icon is a drawing: 🧬 stands for it)
-ICON = {"load": "👤", "memories": "🕰️", "personality": "📝", "appearance": "🖼️", "weights": "🧬", "volume3d": "🧊", "voice": "👄",
+ICON = {"load": "👤", "memories": "🕰️", "psyche": "🧠", "personality": "📝", "appearance": "🖼️", "weights": "🧬", "volume3d": "🧊", "voice": "👄",
         "posture": "🏃", "motion": "🎥", "files": "📁"}
 
 
@@ -235,7 +235,7 @@ class COFLoadCharacter:
     OUTPUT_TOOLTIPS = ("the loaded character, for the advanced COF nodes",
                        "one image: the preset's main image",
                        "a batch of every reference view (face, reference set, character sheet, body) — for nodes that take several reference images; pick one with COF Appearance",
-                       "a ready text prompt for this preset", "rights, age and the presets of this character")
+                       "a ready text prompt for this preset", "rights, age, content flags and the presets of this character")
     FUNCTION = "load"
     CATEGORY = "COF"
     DESCRIPTION = "Loads a character from a COF (Character Open File): primary image, reference views and a ready prompt for the chosen preset."
@@ -636,10 +636,207 @@ class COFMemories:
         return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), audio, "\n".join(paths), labels, len(mems))
 
 
+# ---- COF Psyche (COF 1.2, RFC 0004) ---------------------------------------------------------------------------------
+
+# the words of cof-cli's "Who she is" section (SOUL.md), English and French; another language gets the English words
+PSYCHE_WORDS = {
+    "en": {"title": "Who {pron} is", "pron": {"female": "she", "male": "he"}, "pron_default": "they",
+           "intro": "Rendered from the psyche nodes (RFC 0004) in a fixed order: wound, values, beliefs, wants and needs, fears, stances, tastes, habits, contradictions, rules. "
+                    "A whole sentence weighs most (strength {full} or more); a short clause weighs less. Markers: `lie` — a belief {pron} holds that is false; "
+                    "`guarded` — not opened with, only when it matters; `lived` — came from use, not from the author.",
+           "kinds": {"wound": "Wound", "value": "Values", "belief": "Beliefs", "want": "Wants", "need": "Needs", "fear": "Fears", "stance": "Stances",
+                     "taste": "Tastes", "habit": "Habits", "contradiction": "Contradictions", "rule": "Rules"},
+           "secret": "There are things {pron} does not tell.", "lie": "lie", "guarded": "guarded", "lived": "lived", "about": "about",
+           "toward": "toward", "inappropriate": "inappropriate", "dangerous": "dangerous", "secret_mark": "secret"},
+    "fr": {"title": "Qui {pron} est", "pron": {"female": "elle", "male": "il"}, "pron_default": "iel",
+           "intro": "Rendu depuis les nœuds de la psyché (RFC 0004) dans un ordre fixe : blessure, valeurs, croyances, désirs et besoins, peurs, positions, goûts, habitudes, contradictions, règles. "
+                    "Une phrase entière pèse le plus (force {full} ou plus) ; une courte proposition pèse moins. Marqueurs : `mensonge` — une croyance qu'{pron} tient pour vraie et qui est fausse ; "
+                    "`réservé` — jamais d'emblée, seulement quand cela compte ; `vécu` — venu de l'usage, pas de l'auteur.",
+           "kinds": {"wound": "Blessure", "value": "Valeurs", "belief": "Croyances", "want": "Désirs", "need": "Besoins", "fear": "Peurs", "stance": "Positions",
+                     "taste": "Goûts", "habit": "Habitudes", "contradiction": "Contradictions", "rule": "Règles"},
+           "secret": "Il y a des choses qu'{pron} ne dit pas.", "lie": "mensonge", "guarded": "réservé", "lived": "vécu", "about": "envers",
+           "toward": "envers", "inappropriate": "inapproprié", "dangerous": "dangereux", "secret_mark": "secret"},
+}
+LANGUAGES = ["(preset)", "en", "fr", "de", "es", "it", "pt", "nl", "ja", "ko", "zh", "ru"]
+
+
+def _psyche_words(lang: str) -> dict:
+    return PSYCHE_WORDS["fr" if (lang or "").lower().startswith("fr") else "en"]
+
+
+def _psyche_marks(n: dict, W: dict, include_secret: bool) -> list[str]:
+    """The markers after a node's text: lie, the subject of a stance, guarded, lived, secret (when shown), inappropriate, dangerous (when kept)."""
+    marks = []
+    if n["lie"]:
+        marks.append(W["lie"])
+    if n["kind"] == "stance" and n["subject"]:
+        marks.append(f"{W['about']}: {n['subject']}")
+    if n["disclosure"] == "guarded":
+        marks.append(W["guarded"])
+    if n["disclosure"] == "secret" and include_secret:
+        marks.append(W["secret_mark"])
+    if n["origin"] == "lived":
+        marks.append(W["lived"])
+    if n["risk"] in ("inappropriate", "dangerous"):
+        marks.append(W[n["risk"]])
+    return marks
+
+
+def _by_kind(nodes: list[dict]) -> list[tuple[str, list[dict]]]:
+    """The nodes grouped in cof-cli's fixed kind order (an unknown kind after the known ones), slot order inside a kind."""
+    kinds = list(PSYCHE_ORDER) + sorted({n["kind"] for n in nodes} - set(PSYCHE_ORDER))
+    return [(k, [n for n in nodes if n["kind"] == k]) for k in kinds if any(n["kind"] == k for n in nodes)]
+
+
+def _psyche_line(n: dict) -> str:
+    return n["gist"] if n["strength"] >= FULL_LINE_STRENGTH else short_clause(n["gist"])
+
+
+def psyche_soul(nodes: list[dict], lang: str, pron_gender: str | None, include_secret: bool) -> str:
+    """cof-cli's "Who she is" section (RFC 0004 § 3 quinquies), reproduced: title, intro, one heading per kind in the fixed
+    order, one line per node (the whole gist at strength ≥ 70, a short clause below), markers, secret nodes left out with
+    one line saying so — plus the `inappropriate` / `dangerous` markers cof-cli does not write."""
+    W = _psyche_words(lang)
+    pron = W["pron"].get(pron_gender or "", W["pron_default"])
+    lines = [f"## {W['title'].format(pron=pron)}", "", W["intro"].format(full=FULL_LINE_STRENGTH, pron=pron), ""]
+    secret = 0
+    for kind, group in _by_kind(nodes):
+        rows = []
+        for n in group:
+            if n["disclosure"] == "secret" and not include_secret:
+                secret += 1; continue
+            marks = _psyche_marks(n, W, include_secret)
+            rows.append(f"- {_psyche_line(n)}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
+        if rows:
+            lines += [f"### {W['kinds'].get(kind, kind.capitalize())}", *rows, ""]
+    if secret:
+        lines += [W["secret"].format(pron=pron), ""]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def psyche_lines(nodes: list[dict], lang: str, include_secret: bool) -> str:
+    """One line per node, `kind · gist` (the whole gist) with the markers, in the fixed kind order — for prompt building."""
+    W = _psyche_words(lang)
+    out = []
+    for _, group in _by_kind(nodes):
+        for n in group:
+            if n["disclosure"] == "secret" and not include_secret:
+                continue
+            marks = _psyche_marks(n, W, include_secret)
+            out.append(f"{n['kind']} · {n['gist']}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
+    return "\n".join(out)
+
+
+PROSE_TRAITS = 8           # prose: after the values and the stances, the strongest other nodes, this many at most
+
+
+def psyche_prose(nodes: list[dict], lang: str, include_secret: bool) -> str:
+    """One compact paragraph for an image or video generator: the values first, the stances next (each with its subject),
+    then the strongest other nodes as short clauses, grouped by kind."""
+    W = _psyche_words(lang)
+    shown = [n for n in nodes if include_secret or n["disclosure"] != "secret"]
+    sentence = lambda s: s[:1].upper() + s[1:] + ("" if s.endswith(("…", ".", "!", "?")) else ".")
+    parts = []
+    values = [short_clause(n["gist"]) for n in shown if n["kind"] == "value"]
+    if values:
+        parts.append(sentence(f"{W['kinds']['value']}: " + "; ".join(values)))
+    stances = []
+    for n in shown:
+        if n["kind"] == "stance":
+            cl = short_clause(n["gist"])
+            stances.append(f"{W['toward']} {n['subject']}: {strip_toward(cl)}" if n["subject"] else cl)
+    if stances:
+        parts.append(sentence("; ".join(stances)))
+    rest = sorted((n for n in shown if n["kind"] not in ("value", "stance")), key=lambda n: (-n["strength"], shown.index(n)))[:PROSE_TRAITS]
+    for kind, group in _by_kind(rest):
+        parts.append(sentence(f"{W['kinds'].get(kind, kind.capitalize())}: " + "; ".join(short_clause(n["gist"]) + (f" ({W['lie']})" if n["lie"] else "") for n in group)))
+    return " ".join(parts)
+
+
+def psyche_positions(nodes: list[dict], lang: str, include_secret: bool) -> str:
+    """The stances only, one per line: 'toward X: …' (the gist's own 'Toward X:' opening dropped), with their markers."""
+    W = _psyche_words(lang)
+    out = []
+    for n in nodes:
+        if n["kind"] != "stance" or (n["disclosure"] == "secret" and not include_secret):
+            continue
+        marks = [m for m in _psyche_marks(n, W, include_secret) if not m.startswith(W["about"] + ":")]
+        head = f"{W['toward']} {n['subject']}: {strip_toward(n['gist'])}" if n["subject"] else n["gist"]
+        out.append(head + (f"  ·  {' · '.join(marks)}" if marks else ""))
+    return "\n".join(out)
+
+
+def _psyche_language_choices(c: COF, pid: str, include_personal: bool = False) -> list[str]:
+    """`(preset) — fr`, then the languages the preset's gists carry with their counts."""
+    nodes = c.psyche(pid, "", include_personal)
+    pl = c._wanted(pid)
+    counts: dict[str, int] = {}
+    for n in nodes:
+        for k in n["node"].get("gist") or {}:
+            counts[k] = counts.get(k, 0) + 1
+    out = [f"(preset){SEP}{pl[0] if pl else 'first language of each node'}"]
+    return out + [f"{k}{SEP}{_plural(v, 'node')}" for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
+class COFPsyche:
+    """Psyche (COF 1.2, RFC 0004): the preset's psyche nodes — values, beliefs, wants, needs, fears, wound, stances, tastes,
+    habits, contradictions, rules — as text for a language model or a prompt, in cof-cli's "Who she is" order."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"cof": ("COF",),
+                             "format": (["prose", "lines", "soul"], {"default": "lines", "tooltip": "prose = one compact paragraph for an image or video generator (values and stances first, then the strongest traits); "
+                                                                                                "lines = one line per node, kind · gist, for prompt building; soul = the \"Who she is\" section of cof-cli's SOUL.md (same order and rules)"})},
+                "optional": {"language": (LANGUAGES, {"default": "(preset)", "tooltip": "the language of the gists: the preset's by default; each node falls back to the languages it has"}),
+                             "focus": ("STRING", {"default": "", "multiline": False, "tooltip": "what she thinks of X: keep the nodes whose subject, tags or because / about targets (a memory, a character) match these words, plus every core node; empty = every node"}),
+                             "max_nodes": ("INT", {"default": 0, "min": 0, "max": 500, "tooltip": "the strongest N nodes (core first), 0 = all"}),
+                             "include_secret": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked secret (what the character never tells) — off: left out, with one line saying so in the soul format"}),
+                             "drop_dangerous": ("BOOLEAN", {"default": True, "tooltip": "leave out the nodes whose declared risk is dangerous (would make the character harmful if acted on). A ComfyUI graph generates, it does not act: fiction needs villains, so turn this off for them — but the default stays on the safe side. inappropriate nodes are kept, with a marker"}),
+                             "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked personal (a user's data, never shared by default)"})}}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, language="(preset)"):
+        return True                      # the language list is filled per file by web/cof.js (free text accepted)
+
+    RETURN_TYPES = ("STRING", "STRING", "INT")
+    RETURN_NAMES = ("text", "positions", "count")
+    OUTPUT_TOOLTIPS = ("the psyche in the chosen format (empty for a file without psyche)",
+                       "the stances only, one per line: toward X: …", "how many nodes the text holds")
+    FUNCTION = "render"
+    CATEGORY = "COF"
+    DESCRIPTION = "The character's psyche (COF 1.2): values, beliefs, wants, fears, stances… as text for a prompt, in cof-cli's SOUL.md order; dangerous nodes dropped by default."
+
+    def render(self, cof, format="lines", language="(preset)", focus="", max_nodes=0, include_secret=False, drop_dangerous=True, include_personal=False):
+        c, pid = cof["cof"], cof["preset"]
+        if not hasattr(c, "psyche"):             # the loader came from an older copy of ComfyUI-COF left in custom_nodes
+            c = COF(c.path)
+            print("[ComfyUI-COF] COF Psyche: the file was loaded by an older ComfyUI-COF — keep a single ComfyUI-COF folder in custom_nodes and restart")
+        lang = _token(language)
+        lang = "" if lang in ("", "(preset)") else lang
+        nodes = c.psyche(pid, lang, include_personal)
+        if not nodes:
+            return ("", "", 0)
+        kept, stats = c.psyche_select(nodes, focus, drop_dangerous, max_nodes)
+        out_lang = lang or (c._wanted(pid) or ["en"])[0]
+        if stats["dangerous"]:
+            print(f"[COF] psyche: {_plural(stats['dangerous'], 'dangerous node')} left out (drop_dangerous)")
+        if not drop_dangerous and any(n["risk"] == "dangerous" for n in kept):
+            print("[COF] psyche: dangerous nodes kept — this character would be harmful if it acted on them (RFC 0004 § 3 septies): generation only, never an agent")
+        shown = [n for n in kept if include_secret or n["disclosure"] != "secret"]
+        fmt = _token(format)
+        if fmt == "soul":
+            text = psyche_soul(kept, out_lang, c.identity_view(pid).get("gender"), include_secret)
+        elif fmt == "prose":
+            text = psyche_prose(kept, out_lang, include_secret)
+        else:
+            text = psyche_lines(kept, out_lang, include_secret)
+        return (text, psyche_positions(kept, out_lang, include_secret), len(shown))
+
+
 NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFPersonality": COFPersonality, "COFAppearance": COFAppearance,
                        "COFApplyLoRA": COFApplyLoRA, "COFReferenceLatents": COFReferenceLatents, "COF3D": COF3D,
                        "COFVoice": COFVoice, "COFPostures": COFPostures, "COFMotion": COFMotion, "COFFiles": COFFiles,
-                       "COFMemories": COFMemories}
+                       "COFMemories": COFMemories, "COFPsyche": COFPsyche}
 # one node per category of the COF builder, in the builder's order, with the builder's icons
 NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": f"{ICON['load']} COF Load Character",
                               "COFPersonality": f"{ICON['personality']} COF Personality",
@@ -651,7 +848,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {"COFLoadCharacter": f"{ICON['load']} COF Load Char
                               "COFPostures": f"{ICON['posture']} COF Postures",
                               "COFMotion": f"{ICON['motion']} COF Motion",
                               "COFFiles": f"{ICON['files']} COF Files",
-                              "COFMemories": f"{ICON['memories']} COF Memories"}
+                              "COFMemories": f"{ICON['memories']} COF Memories",
+                              "COFPsyche": f"{ICON['psyche']} COF Psyche"}
 
 
 def _routes():
@@ -708,6 +906,8 @@ def _routes():
                 pk = _token(q.get("pick", "all"))
                 chosen = _select(mems, "all" if pk == "all" else pk, "memory") if mems else []
                 values = _memory_image_choices(_memory_media(c, {"allow_intimate": c.intimate_allowed(pid, q.get("allow") == "true")}, chosen))
+            elif node == "psyche":
+                values = _psyche_language_choices(c, pid, q.get("personal") == "true")
             elif node == "voice":
                 values = [f"sample_{i + 1:03d}{SEP}{_voice_label(v)}" for i, (_, v) in enumerate(_voice_samples(c, pid))] or [f"none{SEP}this preset has no voice sample"]
             elif node == "media":

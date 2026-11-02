@@ -1,7 +1,7 @@
 // ComfyUI-COF: dropdowns filled from the .cof file itself.
 // - COF Load Character: the presets of the selected file (and character).
-// - the category nodes (COF Appearance, Postures, Voice, 3D, Motion, Files): the matching types, images, samples
-//   or files by name, read from the COF Load Character node they are connected to.
+// - the category nodes (COF Appearance, Postures, Voice, 3D, Motion, Files, Memories, Psyche): the matching types, images,
+//   samples, files, memories or gist languages by name, read from the COF Load Character node they are connected to.
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
@@ -66,6 +66,7 @@ const PICKERS = {
   COFFiles: { widget: "pick", node: "media", cat: "files", kinds: true, params: n => ({ kind: token(W(n, "kind")?.value) }), watch: ["kind"] },
   COFMemories: { widget: "pick", node: "memories", params: n => ({ personal: String(!!W(n, "include_personal")?.value) }), watch: ["include_personal", "pick"],
                  extras: [{ widget: "media", node: "memory-media", params: n => ({ personal: String(!!W(n, "include_personal")?.value), pick: token(W(n, "pick")?.value) }) }] },
+  COFPsyche: { widget: "language", node: "psyche", params: n => ({ personal: String(!!W(n, "include_personal")?.value) }), watch: ["include_personal"] },
 };
 
 async function refreshPicker(node) {

@@ -1,4 +1,4 @@
-"""Minimal, dependency-free reader for COF (Character Open File) 1.x containers.
+"""Minimal, dependency-free reader for COF (Character Open File) 1.x containers (1.0, 1.1 memories, 1.2 psyche).
 
 Mirrors the reference rules of cof-cli (spec/SPEC.md, docs/IMPLEMENTING.md): presets with `extends`
 (slots and alternatives replaced per category), `derives_from`, per-character ownership and rights,
@@ -24,6 +24,15 @@ AGE_CATS = {"appearance", "volume3d", "identity_weights"}
 AGELESS = {"clothing", "accessory", "feature", "description", "environment"}
 REF_KINDS = ("face", "reference-set", "character-sheet", "body")
 TEXT_EXT = (".md", ".txt", ".json", ".yaml", ".yml", ".csv")       # files of the Files category that may be read or extracted
+# psyche (COF 1.2, RFC 0004): the eleven kinds in cof-cli's SOUL.md order (§ 3 quinquies); an unknown kind is kept after them
+PSYCHE_ORDER = ("wound", "value", "belief", "want", "need", "fear", "stance", "taste", "habit", "contradiction", "rule")
+FULL_LINE_STRENGTH = 70                                            # at or above: the whole gist; below: a short clause
+PSYCHE_FLAGS = {"psyche-dangerous": "a psyche node that would make the character harmful if it acted on it",
+                "psyche-inappropriate": "a psyche node unsuitable for some audiences or uses"}
+# words of a `focus` that select nothing by themselves ("what she thinks of the Martian" → martian)
+FOCUS_STOP = {"the", "and", "for", "with", "about", "toward", "towards", "what", "she", "her", "his", "him", "they", "them",
+              "think", "thinks", "feel", "feels", "les", "des", "une", "aux", "est", "elle", "ils", "elles", "son", "ses", "sur",
+              "envers", "pense", "que", "qui", "quoi", "avec", "pour", "dans"}
 
 
 class COFError(ValueError):
@@ -56,6 +65,59 @@ def english(label: str) -> str:
     if not parts:
         return label
     return min(reversed(parts), key=lambda x: len(_FR.findall(x)) - len(_EN.findall(x)))
+
+
+def label_in(label: str, lang: str) -> str:
+    """A bilingual 'Français / English' label in the wanted language: the English half for English, the other half
+    otherwise (the French of 'La rencontre avec le Martien / Meeting the Martian' for a French rendering)."""
+    if not label or " / " not in label:
+        return label or ""
+    en = english(label)
+    if (lang or "en").lower().startswith("en"):
+        return en
+    other = [x.strip() for x in label.split(" / ") if x.strip() and x.strip() != en]
+    return other[0] if other else en
+
+
+def text_in(obj, lang: str) -> str:
+    """A language-keyed text (gist, label) in the wanted language, else its base language (fr-CA → fr), else its first entry."""
+    if isinstance(obj, str):
+        return obj
+    if not isinstance(obj, dict) or not obj:
+        return ""
+    low = {k.lower(): v for k, v in obj.items()}
+    want = (lang or "").lower()
+    if want in low:
+        return low[want]
+    base = want.split("-")[0]
+    for k, v in low.items():
+        if base and k.split("-")[0] == base:
+            return v
+    return next(iter(obj.values()))
+
+
+def fold(s: str) -> str:
+    """Lower-case, accents stripped: 'Martien' and 'martian' are compared on their letters."""
+    import unicodedata
+    return "".join(ch for ch in unicodedata.normalize("NFKD", str(s or "")) if not unicodedata.combining(ch)).lower()
+
+
+def short_clause(text: str, limit: int = 100) -> str:
+    """cof-cli's short form of a psyche node (RFC 0004 § 3 quinquies): the first sentence, the elaboration after a dash
+    dropped, cut at a word boundary past `limit` characters — deterministic."""
+    t = " ".join(str(text).split())
+    for sep in (" — ", " – "):
+        i = t.find(sep)
+        if i > 0:
+            t = t[:i]
+    m = re.search(r"[.!?](\s|$)", t)
+    if m and m.start() > 0:
+        t = t[:m.start()]
+    t = t.rstrip(" ,;:")
+    if len(t) > limit:
+        cut = t.rfind(" ", 0, limit)
+        t = (t[:cut] if cut > 0 else t[:limit]).rstrip(" ,;:") + "…"
+    return t
 
 
 def visual_summary(summary: str, name: str = "") -> str:
@@ -92,7 +154,7 @@ class COF:
         if not isinstance(self.m, dict):
             raise COFError(f"{self.path.name}: manifest.json is not an object")
         ver = str(self.m.get("cof", ""))
-        if not re.fullmatch(r"1\.\d+", ver):
+        if not re.fullmatch(r"1\.\d+", ver):               # every 1.x is read: 1.1 (memories) and 1.2 (psyche) are additive
             raise COFError(f"{self.path.name}: format {ver or '?'} — run `cof migrate` (COF 1.x expected)")
         self.assets = {a["id"]: a for a in self.m.get("assets", []) if "id" in a}
 
@@ -463,6 +525,7 @@ class COF:
                     out.append(line)
                 if ps.get("role"):
                     out.append(f"Narrative role: {str(ps['role']).replace('-', ' ')}")
+        out += self.psyche_clause(pid)                                       # COF 1.2 (RFC 0004): the strongest value and stance, one clause each
         greet = self.preset_prompts(pid).get("greeting")                     # RFC 0003 § 4 bis
         if greet:
             lang = langs[0] if langs else None
@@ -535,7 +598,16 @@ class COF:
                  "presets of this character: " + ", ".join(self.presets_of(iid))]
         if len(self.identities()) > 1:
             lines.append("characters: " + ", ".join(f"{i} ({x.get('name')})" for i, x in self.identities().items()))
+        flags = self.content_flags()
+        if flags:
+            lines.append("content: " + ", ".join(f"{f} ({PSYCHE_FLAGS[f]})" if f in PSYCHE_FLAGS else f for f in flags))
         return "\n".join(lines)
+
+    def content_flags(self) -> list[str]:
+        """`tags.content` of the file (nudity, intimate, violence…; `psyche-dangerous` / `psyche-inappropriate` since COF 1.2,
+        RFC 0004 § 3 septies), 'none' left out — what a host decides from without opening the elements."""
+        tags = (self.m.get("tags") or {}).get("content") or []
+        return [str(t) for t in tags if t and t != "none"] if isinstance(tags, list) else []
 
 
     # ---- memories (COF 1.1, RFC 0002) ----------------------------------------------------------------------
@@ -608,17 +680,14 @@ class COF:
             if not changed:
                 break
         order = sorted((v for v in vids if v in key), key=lambda v: (key[v], vids.index(v))) + [v for v in vids if v not in key]
-        pers = (self.resolved(self.slots(pid)).get("personality") or [{}])[0]
-        want = [x for x in (pers.get("language"), self.identity(self.owner(pid)).get("language")) if x]
+        want = self._wanted(pid)
         out = []
         for v in order:
             n = nodes[v]
             if n.get("visibility") == "personal" and not include_personal:
                 continue
             g = n.get("gist") or {}
-            low = {k.lower(): k for k in g}
-            lang = next((low[w.lower()] for w in want if w.lower() in low), None) or \
-                   next((low[k] for w in want for k in low if k.split("-")[0] == w.lower().split("-")[0]), None) or next(iter(g), "")
+            lang = self._gist_lang(g, want)
             rv = self.variant("memories", v) or {}
             w = n.get("when") or {}
             lab = (w.get("label") or {}).get(lang) or next(iter((w.get("label") or {}).values()), "")
@@ -634,3 +703,174 @@ class COF:
                         "gist": g.get(lang, ""), "when": f"{lab} ({fig})" if lab and fig else (lab or fig or "undated"),
                         "media": self.memory_media(v), "explicit": self.memory_explicit(v)})
         return out
+
+    # ---- languages of the gists (RFC 0002 § 3 reading rule, shared by memories and psyche) ---------------------------
+
+    def _wanted(self, pid: str, language: str = "") -> list[str]:
+        """The languages to read a gist in, in order: the one asked (if any), the preset's personality language, the
+        character's primary language, the file's languages."""
+        pers = (self.resolved(self.slots(pid)).get("personality") or [{}])[0]
+        langs = [language, pers.get("language"), self.identity(self.owner(pid)).get("language"), *(self.m.get("languages") or [])]
+        return [str(x).strip() for x in langs if isinstance(x, str) and x.strip()]
+
+    @staticmethod
+    def _gist_lang(g: dict, want: list[str]) -> str:
+        """The key of the language map to read: the first wanted language present, else one of the same base (fr-CA → fr),
+        else the first entry."""
+        low = {k.lower(): k for k in g}
+        return next((low[w.lower()] for w in want if w.lower() in low), None) or \
+               next((low[k] for w in want for k in low if k.split("-")[0] == w.lower().split("-")[0]), None) or next(iter(g), "")
+
+    # ---- psyche (COF 1.2, RFC 0004) -------------------------------------------------------------------------------
+
+    USER_WORD = {"en": "the user", "fr": "l'utilisateur"}
+
+    def _identity_words(self, iid: str) -> list[str]:
+        I = self.identities().get(iid) or {}
+        out = [iid, I.get("name") or "", I.get("given_name") or "", I.get("nickname") or ""] + list(I.get("nicknames") or [])
+        return [x for x in out if isinstance(x, str) and x]
+
+    def _target_words(self, ref: str) -> list[str]:
+        """What a link or an `about` target can be found by: a memory's label, tags, people and places; a psyche node's
+        label and tags; a character's names."""
+        cat, _, vid = str(ref or "").partition("/")
+        if cat == "identities":
+            return self._identity_words(vid)
+        rv = self.variant(cat, vid) or {}
+        words = [rv.get("label") or "", vid]
+        if cat == "memories" and rv.get("memory"):
+            n = self.json_at(rv["memory"]) or {}
+            words += [str(t) for t in (n.get("tags") or [])]
+            for w in n.get("who") or []:
+                if isinstance(w, dict):
+                    words += list((w.get("label") or {}).values()) if isinstance(w.get("label"), dict) else []
+                    if w.get("identity") and w["identity"] != "self":
+                        words += self._identity_words(w["identity"])
+            where = (n.get("where") or {}).get("label")
+            words += list(where.values()) if isinstance(where, dict) else []
+        elif cat == "psyche" and rv.get("node"):
+            n = self.json_at(rv["node"]) or {}
+            words += [str(t) for t in (n.get("tags") or [])]
+        return [x for x in words if isinstance(x, str) and x]
+
+    def psyche_subject(self, about, lang: str) -> str:
+        """What a stance bears on, as a short text in the wanted language: the user, a character's name, a node's
+        label or the free label (RFC 0004 § 3 bis)."""
+        if not isinstance(about, dict):
+            return ""
+        if about.get("user"):
+            return self.USER_WORD.get((lang or "en").lower().split("-")[0], self.USER_WORD["en"])
+        if about.get("identity"):
+            return (self.identities().get(about["identity"]) or {}).get("name") or str(about["identity"])
+        if about.get("node"):
+            cat, _, vid = str(about["node"]).partition("/")
+            return label_in((self.variant(cat, vid) or {}).get("label") or vid, lang)
+        return text_in(about.get("label"), lang)
+
+    def psyche(self, pid: str, language: str = "", include_personal: bool = False) -> list[dict]:
+        """The preset's psyche nodes (`slots.psyche`, inherited through `extends`) in slot order, each with its gist in the
+        wanted language (the one asked, else the preset's, each node falling back to what it has), its weight and axes,
+        the subject of a stance, and the words it can be focused by: [{id, kind, label, node, lang, gist, strength,
+        stability, disclosure, origin, risk, lie, subject, keywords}]. Unknown kinds and fields are kept as they are.
+        A file without psyche (1.0, 1.1) gives an empty list. Personal nodes (a user's data) are left out unless asked."""
+        vids = [v for v in (self.slots(pid).get("psyche") or []) if self.variant("psyche", v)]
+        want = self._wanted(pid, language)
+        out = []
+        for v in vids:
+            rv = self.variant("psyche", v) or {}
+            n = self.json_at(rv["node"]) if isinstance(rv.get("node"), str) else None
+            if not isinstance(n, dict) or not isinstance(n.get("gist"), dict) or not n["gist"]:
+                continue
+            if n.get("visibility") == "personal" and not include_personal:
+                continue
+            lang = self._gist_lang(n["gist"], want)
+            strength = next((x for x in (n.get("strength"), rv.get("strength")) if isinstance(x, (int, float)) and not isinstance(x, bool)), 50)
+            kind = str(rv.get("kind") or "")
+            words = [str(rv.get("label") or ""), v] + [str(t) for t in (n.get("tags") or []) if t]
+            about = n.get("about") if isinstance(n.get("about"), dict) else None
+            if about:
+                if about.get("user"):
+                    words += list(self.USER_WORD.values()) + ["user"]
+                if about.get("identity"):
+                    words += self._identity_words(str(about["identity"]))
+                if about.get("node"):
+                    words += self._target_words(str(about["node"]))
+                if isinstance(about.get("label"), dict):
+                    words += [str(x) for x in about["label"].values()]
+            for ln in n.get("links") or []:
+                if isinstance(ln, dict) and ln.get("type") in ("because", "about"):
+                    words += self._target_words(str(ln.get("to", "")))
+                    if isinstance(ln.get("label"), dict):
+                        words += [str(x) for x in ln["label"].values()]
+            out.append({"id": v, "kind": kind, "label": rv.get("label") or v, "node": n, "lang": lang,
+                        "gist": " ".join(str(n["gist"].get(lang, "")).split()), "strength": int(strength),
+                        "stability": n.get("stability") or "settled", "disclosure": n.get("disclosure") or "open",
+                        "origin": n.get("origin") or "authored", "risk": n.get("risk") or "none",
+                        "lie": kind == "belief" and bool(n.get("false_but_held")),
+                        "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
+                        "keywords": [w for w in words if w]})
+        return out
+
+    @staticmethod
+    def psyche_select(nodes: list[dict], focus: str = "", drop_dangerous: bool = True, max_nodes: int = 0) -> tuple[list[dict], dict]:
+        """RFC 0004 § 3 quinquies, selection at use time. `focus`: keep the nodes whose label, tags, subject or `because` /
+        `about` targets (a memory's label, tags, people, places; a character's names) match the words, plus every `core`
+        node — "what she thinks of X". `drop_dangerous`: the `dangerous` nodes leave (an agent acts; a generator does not,
+        but the default stays on the safe side). `max_nodes`: the strongest N (core first, then by strength, then slot
+        order), 0 = all. A contradiction whose two sides are not both kept is dropped (§ 3 sexies). Returns the kept
+        nodes in slot order and what was dropped."""
+        stats = {"dangerous": 0, "focus": 0, "limit": 0, "contradictions": 0}
+        keep = []
+        for n in nodes:
+            if drop_dangerous and n["risk"] == "dangerous":
+                stats["dangerous"] += 1; continue
+            keep.append(n)
+        if focus and focus.strip():
+            whole = fold(focus).strip()
+            words = [w for w in re.split(r"[\s,;/]+", whole) if len(w) >= 3 and w not in FOCUS_STOP]
+            def hit(n):
+                if n["stability"] == "core":
+                    return True
+                hay = [fold(k) for k in n["keywords"]]
+                return any(whole in h or any(w in h for w in words) for h in hay)
+            before = len(keep)
+            keep = [n for n in keep if hit(n)]
+            stats["focus"] = before - len(keep)
+        if max_nodes and max_nodes > 0 and len(keep) > max_nodes:
+            rank = sorted(keep, key=lambda n: (n["stability"] != "core", -n["strength"], nodes.index(n)))[:max_nodes]
+            stats["limit"] = len(keep) - len(rank)
+            keep = [n for n in keep if n in rank]
+        while True:
+            ids = {n["id"] for n in keep}
+            gone = [n for n in keep if n["kind"] == "contradiction"
+                    and sum(1 for ln in (n["node"].get("links") or []) if isinstance(ln, dict) and ln.get("type") == "conflicts"
+                            and str(ln.get("to", "")).partition("/")[2] in ids) < 2]
+            if not gone:
+                break
+            stats["contradictions"] += len(gone)
+            keep = [n for n in keep if n not in gone]
+        return keep, stats
+
+    def psyche_clause(self, pid: str) -> list[str]:
+        """What the persona text says of the psyche when the preset holds nodes: one short clause from the strongest value
+        and one from the strongest stance — open nodes only (no secret, no dangerous, no personal), the gist's first sentence."""
+        kept, _ = self.psyche_select([n for n in self.psyche(pid) if n["disclosure"] != "secret"])
+        out = []
+        for kind, lead in (("value", "Core value: "), ("stance", "Stance")):
+            best = max((n for n in kept if n["kind"] == kind), key=lambda n: n["strength"], default=None)
+            if not best:
+                continue
+            clause = short_clause(best["gist"])
+            if kind == "stance":
+                subj = best["subject"]
+                out.append(f"{lead} toward {subj}: {strip_toward(clause)}" if subj else f"{lead}: {clause}")
+            else:
+                out.append(lead + clause)
+        return out
+
+
+def strip_toward(text: str) -> str:
+    """A stance gist often opens with its subject ('Toward the Martian: protective curiosity…', 'Envers les agences : …'):
+    when the subject is named beside it, that opening is dropped so it is not said twice."""
+    m = re.match(r"^(toward|towards|envers|vers|about|à propos de)\s+[^:]{1,60}:\s*", text, re.I)
+    return text[m.end():] if m and text[m.end():] else text

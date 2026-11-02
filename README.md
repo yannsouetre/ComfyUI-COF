@@ -10,7 +10,7 @@
 <a href="https://yannsouetre.github.io/cof/builder/"><img src="docs/img/btn-build.png" alt="Build one in your browser" width="250"></a>
 </p>
 
-A **COF (Character Open File)** `.cof` packs a whole AI character — reference views, outfits, places, LoRA, pre-encoded references (RefMods), voice, poses, motion clips, personality — together with its rights. These nodes turn a **preset** of that character (a language, an age, a style…) into images, a prompt, a LoRA, audio and files for your workflow. No extra Python package is needed.
+A **COF (Character Open File)** `.cof` packs a whole AI character — reference views, outfits, places, LoRA, pre-encoded references (RefMods), voice, poses, motion clips, personality, memories (COF 1.1), psyche (COF 1.2) — together with its rights. These nodes turn a **preset** of that character (a language, an age, a style…) into images, a prompt, a LoRA, audio and files for your workflow. No extra Python package is needed.
 
 ## Nodes
 
@@ -29,14 +29,33 @@ A **COF (Character Open File)** `.cof` packs a whole AI character — reference 
 | 🎥 COF Motion | `cof`, **pick** (the motion clips by name, or all) | paths (exported to `input/cof/`), labels, count |
 | 📁 COF Files | `cof`, **kind** (skill, memory, document…), **pick** | the text of the chosen files, their paths (exported to `input/cof/…/files/`, a skill keeps its folder layout), labels, count |
 | 🕰️ COF Memories (COF 1.1) | `cof`, **pick** (the memories by name, oldest first, or all), **media** (one image of the chosen memory, or all), include personal, include text media | the memories as text for a prompt (gist in the preset's language, when-marker, nature / disclosure / fidelity, remembered lines), their images (or the one chosen), the first sound as AUDIO, the sound and video files extracted under `input/cof/` (paths, one per line), labels, count |
+| 🧠 COF Psyche (COF 1.2) | `cof`, **format** (`prose`, `lines`, `soul`), **language** (the preset's, or one the gists carry), **focus** (free text: "what she thinks of X"), max nodes, include secret, drop dangerous (on), include personal | `text` (the psyche in the chosen format), `positions` (the stances only, one per line: "toward X: …"), `count` |
 
-The builder's LoRA icon is a drawing; 🧬 stands for it here. **COF Files** reads and exports text files only (Markdown, text, JSON, YAML, CSV): a script inside a skill is listed, never extracted.
+The builder's LoRA icon is a drawing; 🧬 stands for it here, and 🧠 for the psyche, which has no builder step yet. **COF Files** reads and exports text files only (Markdown, text, JSON, YAML, CSV): a script inside a skill is listed, never extracted.
 
 - **Presets**: the dropdown lists the presets of the selected file — and, in a file with several characters, those of the selected character. `(default)` is the character's default preset. After adding a `.cof` file, press **R** (refresh) in ComfyUI.
 - **One image or several**: `primary_image` is one image, the preset's main one. `references` is a **batch** of every reference view (face, reference set, character sheet, body), for nodes that take several reference images (IP-Adapter, multi-reference editing models). To choose, take **COF Appearance**: its **pick** dropdown lists the images that match, by name (`image_001 — Bright studio facing the park (environment) · background.desktop`…), plus `mosaic_all` for all of them as one batch when there are 24 or fewer, or `mosaic_page_1`, `mosaic_page_2`… (24 at a time) when there are more.
 - The dropdowns follow the **COF Load Character** node they are connected to: change the file, the preset or the character, and the lists update.
 
 The **prompt** combines the trigger words of the preset's LoRA, the character's name and visual summary, the preset's age, the outfit, accessories and place applied by the preset, and its visual style.
+
+### COF Psyche (COF 1.2, RFC 0004)
+
+A 1.2 file carries the character's inner life as a **graph of nodes** — values, beliefs, wants, needs, fears, wound, stances, tastes, habits, contradictions, rules — each with a gist per language, a strength (0–100), a stability (`core`, `settled`, `shifting`, `fragile`), the axes of the memories (`origin`, `visibility`, `disclosure`) and typed links to memories, other nodes and characters. The node reads the nodes the preset lists (`slots.psyche`, inherited through `extends`) and renders them as text:
+
+- **`soul`** — the "Who she is" section of cof-cli's `SOUL.md` (`cof export --format agent`), reproduced line for line: a heading per kind in the fixed order wound → values → beliefs → wants → needs → fears → stances → tastes → habits → contradictions → rules, the whole gist at strength 70 or more and a short clause below (first sentence, the elaboration after a dash dropped, cut past 100 characters), the markers `lie` (a belief held and false), `about: X` (the subject of a stance), `guarded`, `lived`, secret nodes left out with one line saying there are things she does not tell. For a language model.
+- **`lines`** — one line per node, `kind · gist` (always the whole gist) with the same markers, in the same order. For prompt building: cut, filter or prefix as you like.
+- **`prose`** — one compact paragraph for an image or video generator: the values first, then the stances with their subject, then the strongest other nodes (8 at most) as short clauses grouped by kind.
+
+`positions` gives the stances alone, one per line, `toward X: …` — the subject being the user (`about: {"user": true}`), a character of the file, a node's label or the free label of the node; the gist's own "Toward X:" opening is dropped so it is not said twice. `count` is the number of nodes the text holds.
+
+- **language**: the preset's by default (its personality's language, else the character's); the list offers the languages the preset's gists carry, with their counts; each node falls back to the languages it has. The section words (headings, markers) exist in English and French; another language gets the English words around its gists.
+- **focus** — the "what she thinks of X" of RFC 0004 § 3 quinquies (constellations): with a text, the node keeps every `core` node plus the nodes whose label, tags, subject or `because` / `about` targets match it — a memory's label, tags, people and places, a character's names, a node's label and tags. Case and accents do not matter; small words (the, of, what, she…) are ignored. `focus = "the Martian"` on Clara gives her stance toward him and her five core nodes.
+- **max_nodes**: the strongest N nodes (core first, then by strength), 0 = all.
+- **include_secret** (off): `disclosure: secret` nodes are never output unless asked (then marked `secret`). **include_personal** (off): `visibility: personal` nodes are a user's data, as personal memories.
+- **drop_dangerous** (on): nodes whose declared `risk` is `dangerous` (would make the character harmful if it acted on them — RFC 0004 § 3 septies) leave the text, and the contradictions that lose a side with them. The RFC gates such nodes by use: an agent that acts must never load them; a fiction host may. **A ComfyUI graph generates — it does not act — and fiction needs villains**, so turn it off for an antagonist; the default stays on the safe side and the console says how many nodes were left out. `inappropriate` nodes are always kept, with a marker. The file-level flags `psyche-dangerous` / `psyche-inappropriate` (`tags.content`) show in the loader's `info` output with the other content flags, so you know before rendering.
+
+When the preset holds psyche nodes, **COF Personality** also ends with one short clause from the strongest value and one from the strongest stance ("Core value: Lightness: do less, better" / "Stance toward design agencies: no rancour, no return") — open nodes only, never a secret, dangerous or personal one. A 1.0 or 1.1 file (no psyche) gives empty outputs, a count of 0 and no clause.
 
 ## The character's rules are enforced
 
@@ -78,14 +97,17 @@ The workflow opens with a **Read me** note, under the loader, that sums this up.
 cd tests && python -m pytest test_nodes.py --import-mode=importlib -c /dev/null
 ```
 
-The tests stub `torch` and `comfy`. They need five sample files in `tests/samples/`:
+The tests stub `torch` and `comfy`. They need six sample files in `tests/samples/`:
 - `clara-mercier.cof` and `clara-martien.cof`, from `viewer/samples/` of the COF repository;
-- `clara-memories.cof`, the COF repository's `spec/examples/10-clara-mercier` (1.1, with memories) packed;
+- `clara-memories.cof`, the COF repository's `spec/examples/10-clara-mercier` at 1.1 (with memories) packed;
+- `clara-psyche.cof`, the same example at 1.2 (with the 22 psyche nodes) packed (`cof pack spec/examples/10-clara-mercier -o tests/samples/clara-psyche.cof`);
 - `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
 - `refmod.cof`, a test file with a pre-encoded reference.
 
 ## Changes
 
+- **0.7.0** — **COF Psyche** (COF 1.2, RFC 0004): the preset's psyche nodes as text — `soul` (cof-cli's "Who she is" section of `SOUL.md`, same order, same strength rule, same markers), `lines` (`kind · gist`, one per node) or `prose` (one paragraph for an image or video generator: values, stances, the strongest traits); the stances alone in `positions` ("toward X: …"); `focus` keeps the nodes that hang on a memory, a character or a subject plus the core ones ("what she thinks of the Martian"); `max_nodes`; the language of the gists (the preset's, or one the gists carry, listed with counts); secret nodes never output unless asked, personal ones neither; `dangerous` nodes dropped by default (a graph generates, it does not act — turn it off for a villain), `inappropriate` ones kept with a marker, the contradictions that lose a side dropped with them.
+- **0.7.0** — the reader accepts `cof: "1.2"` files and reads the `psyche` category (variants, node files, `slots.psyche` through `extends`), tolerant of unknown kinds and fields; the file-level content flags (`tags.content`: nudity, `psyche-dangerous`, `psyche-inappropriate`…) appear in the loader's `info` output; **COF Personality** ends with one short clause from the strongest value and one from the strongest stance when the preset holds nodes. Test sample `tests/samples/clara-psyche.cof` (COF example 10 at 1.2).
 - **0.6.0** — review of 28 October: the adult rules read the preset's **safety age** — its lowest age including the ages its memories carry (RFC 0002 § 5.2: a preset listing a memory that shows the character as a minor is a minor preset) — while the prompt and the summary keep the age shown; a memory counts as explicit through the variant's 1.0 `nudity` flag and through the node it borrows its media from (`media_from`), not only through its own `explicit`; the **media** list of COF Memories is built with the same effective adult flag as the node (no explicit image offered that the node then refuses); memory media are extracted under a slugged id, never a path taken from the file; a media listed in the manifest but missing from the archive, a damaged image or an invalid manifest give a clean `COFError` or a console line instead of a Python exception.
 - **0.6.0** — **COF Memories** gains a **media** list (one image of the chosen memory, `image_001`…, or all as a batch), an **audio** output (the first sound of the chosen memories, silence otherwise) and a **media_paths** output (the sound and video files of the memories extracted under `input/cof/cof-<file>/memories/<id>/`, one path per line — feed a node that loads a video or a sound from a path, or pick them from `input/` after a refresh); the preview workflow previews both.
 - **0.6.0** — the preview workflow is laid out in **two columns of groups**, one per category, plus a full-width group for Memories, each collapsible from the dot at its top left; nodes sit on a column and row grid computed from their sizes (title bar and preview room included), the groups fit their nodes, two Read me notes (general, and Memories) are sized to their text; the loader's file list shows `.cof` files only (the clips the Motion node extracts into `models/cof/<name>/` no longer appear in it); COF Memories reopens the file with these nodes when the loader came from an older copy of ComfyUI-COF left in `custom_nodes` (and says so in the console — keep one copy).
