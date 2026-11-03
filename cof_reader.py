@@ -870,7 +870,7 @@ class COF:
         label, tags, people, places, objects; a character's names) match the words, plus every `core` node — "what she
         thinks of X". `drop_dangerous`: the `dangerous` nodes leave — the persona clause always drops them; the COF Psyche
         node keeps them unless asked (decision D3, 3 November 2026: a graph generates, it does not act). `max_nodes`: the strongest N (core first, then by strength, then slot
-        order), 0 = all. A contradiction whose two sides are not both kept is dropped (§ 3 sexies). Returns the kept
+        order), 0 = all. A contradiction the focus matches brings its two sides; one whose two sides are not both kept is dropped (§ 3 sexies). Returns the kept
         nodes in slot order and what was dropped."""
         stats = {"dangerous": 0, "focus": 0, "limit": 0, "contradictions": 0}
         keep = []
@@ -887,7 +887,14 @@ class COF:
                 hay = [fold(k) for k in n["keywords"]]
                 return any(whole in h or any(w in h for w in words) for h in hay)
             before = len(keep)
-            keep = [n for n in keep if hit(n)]
+            pool = keep
+            keep = [n for n in pool if hit(n)]
+            # a contradiction the focus names brings its two sides along (else the rule below would drop it: « guitar »
+            # names Clara's contra1 through its object, and the tension is the answer)
+            ids = {n["id"] for n in keep}
+            sides = {str(ln.get("to", "")).partition("/")[2] for n in keep if n["kind"] == "contradiction"
+                     for ln in (n["node"].get("links") or []) if isinstance(ln, dict) and ln.get("type") == "conflicts"}
+            keep = [n for n in pool if n["id"] in ids or n["id"] in sides]
             stats["focus"] = before - len(keep)
         if max_nodes and max_nodes > 0 and len(keep) > max_nodes:
             rank = sorted(keep, key=lambda n: (n["stability"] != "core", -n["strength"], nodes.index(n)))[:max_nodes]

@@ -350,7 +350,8 @@ def test_people_places_objects(pack):
     line = next(l for l in text.splitlines() if "pendentif de ma" in l and l.startswith("_"))
     assert line.index("where:") < line.index("with:") < line.index("objects:")
     dd = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "", "", 256)[0]
-    assert any("guitar" in k.lower() for k in psy["contra1"]["keywords"])                   # contra1: its item's label (the focus then drops it,
-    assert "guitar" not in nodes.COFPsyche().render(dd, "lines", focus="guitar")[0]           # as a contradiction without both its sides)
+    assert any("guitar" in k.lower() for k in psy["contra1"]["keywords"])                   # contra1: its item's label
+    tg = nodes.COFPsyche().render(dd, "lines", focus="guitar")[0]                             # the focus keeps the contradiction
+    assert "guitar" in tg.lower() and "Lightness" in tg and "slow down" in tg.lower()          # and brings its two sides (val1, bel3)
     assert "Keeps a small recycled-paper notebook" in nodes.COFPsyche().render(dd, "lines", focus="carnet")[0]   # hab1: its own object, any language
     assert "Co-found a fully ethical" in nodes.COFPsyche().render(dd, "lines", focus="studio")[0]                # want2: its place (an environment)
