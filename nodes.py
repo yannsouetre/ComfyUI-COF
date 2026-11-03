@@ -564,7 +564,7 @@ class COFMemories:
 
     RETURN_TYPES = ("STRING", "IMAGE", "AUDIO", "STRING", "STRING", "INT")
     RETURN_NAMES = ("text", "images", "audio", "media_paths", "labels", "count")
-    OUTPUT_TOOLTIPS = ("the memories as text, oldest first: a heading per memory with its when-marker, then the gist (in the preset's language) and its remembered lines",
+    OUTPUT_TOOLTIPS = ("the memories as text, oldest first: a heading per memory with its when-marker, then the gist (in the preset's language), a line naming where, with whom and with what objects, and its remembered lines",
                        "the images of the chosen memories, or the one image chosen in `media` (a blank image when there is none)",
                        "the first sound of the chosen memories (silence when there is none) — for a voice or lip-sync node",
                        "the sound and video files of the chosen memories, extracted under input/cof/ — one path per line, for a node that loads a video or a sound from a path",
@@ -590,6 +590,9 @@ class COFMemories:
                 marks.append("explicit")
             lines.append(f"### {m['label']}  ·  {m['when']}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
             lines.append(m["gist"].strip())
+            ctx = [f"{k}: {', '.join(m.get(f) or [])}" for k, f in (("where", "places"), ("with", "people"), ("objects", "objects")) if m.get(f)]
+            if ctx:                                                          # as cof-cli's MEMORY.md: where, with whom, with what (RFC 0005)
+                lines.append("_" + " · ".join(ctx) + "_")
             if m.get("explicit", n.get("explicit")) and not cof["allow_intimate"]:
                 media_ = []                                                  # RFC 0002 § 5: never without the opt-in
             else:
@@ -788,10 +791,10 @@ class COFPsyche:
                              "format": (["prose", "lines", "soul"], {"default": "lines", "tooltip": "prose = one compact paragraph for an image or video generator (values and stances first, then the strongest traits); "
                                                                                                 "lines = one line per node, kind · gist, for prompt building; soul = the \"Who she is\" section of cof-cli's SOUL.md (same order and rules)"})},
                 "optional": {"language": (LANGUAGES, {"default": "(preset)", "tooltip": "the language of the gists: the preset's by default; each node falls back to the languages it has"}),
-                             "focus": ("STRING", {"default": "", "multiline": False, "tooltip": "what she thinks of X: keep the nodes whose subject, tags or because / about targets (a memory, a character) match these words, plus every core node; empty = every node"}),
+                             "focus": ("STRING", {"default": "", "multiline": False, "tooltip": "what she thinks of X: keep the nodes whose subject, tags, people, places, objects or because / about targets (a memory, a character) match these words, plus every core node; empty = every node"}),
                              "max_nodes": ("INT", {"default": 0, "min": 0, "max": 500, "tooltip": "the strongest N nodes (core first), 0 = all"}),
                              "include_secret": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked secret (what the character never tells) — off: left out, with one line saying so in the soul format"}),
-                             "drop_dangerous": ("BOOLEAN", {"default": True, "tooltip": "leave out the nodes whose declared risk is dangerous (would make the character harmful if acted on). A ComfyUI graph generates, it does not act: fiction needs villains, so turn this off for them — but the default stays on the safe side. inappropriate nodes are kept, with a marker"}),
+                             "drop_dangerous": ("BOOLEAN", {"default": False, "tooltip": "off (default): the nodes whose declared risk is dangerous (would make the character harmful if it acted on them) are kept, marked « dangerous » in the text — a ComfyUI graph generates for the person who built it, it does not act, and fiction needs villains. Tick it to leave them out (and the contradictions that lose a side). inappropriate nodes are always kept, with a marker. cof-cli's agent export still drops dangerous nodes: an agent acts"}),
                              "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked personal (a user's data, never shared by default)"})}}
 
     @classmethod
@@ -804,9 +807,10 @@ class COFPsyche:
                        "the stances only, one per line: toward X: …", "how many nodes the text holds")
     FUNCTION = "render"
     CATEGORY = "COF"
-    DESCRIPTION = "The character's psyche (COF 1.2): values, beliefs, wants, fears, stances… as text for a prompt, in cof-cli's SOUL.md order; dangerous nodes dropped by default."
+    DESCRIPTION = ("The character's psyche (COF 1.2): values, beliefs, wants, fears, stances… as text for a prompt, in cof-cli's SOUL.md order. "
+                   "Dangerous nodes are kept and marked « dangerous »: a graph generates for the person who built it, it does not act (tick drop_dangerous to leave them out; an agent export drops them).")
 
-    def render(self, cof, format="lines", language="(preset)", focus="", max_nodes=0, include_secret=False, drop_dangerous=True, include_personal=False):
+    def render(self, cof, format="lines", language="(preset)", focus="", max_nodes=0, include_secret=False, drop_dangerous=False, include_personal=False):
         c, pid = cof["cof"], cof["preset"]
         if not hasattr(c, "psyche"):             # the loader came from an older copy of ComfyUI-COF left in custom_nodes
             c = COF(c.path)
@@ -821,7 +825,7 @@ class COFPsyche:
         if stats["dangerous"]:
             print(f"[COF] psyche: {_plural(stats['dangerous'], 'dangerous node')} left out (drop_dangerous)")
         if not drop_dangerous and any(n["risk"] == "dangerous" for n in kept):
-            print("[COF] psyche: dangerous nodes kept — this character would be harmful if it acted on them (RFC 0004 § 3 septies): generation only, never an agent")
+            print("[COF] psyche: dangerous nodes kept, marked « dangerous » — this character would be harmful if it acted on them (RFC 0004 § 3 septies): generation only, never an agent (tick drop_dangerous to leave them out)")
         shown = [n for n in kept if include_secret or n["disclosure"] != "secret"]
         fmt = _token(format)
         if fmt == "soul":

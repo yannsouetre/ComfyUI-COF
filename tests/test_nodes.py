@@ -303,20 +303,22 @@ def test_psyche_risk_secret_personal(pack):
     orig = c.json_at
     c.json_at = lambda rel: synth[rel] if rel in synth else orig(rel)
     cof = {"cof": c, "preset": "default", "allow_intimate": False, "max_size": 256}
-    t, _, n = nodes.COFPsyche().render(cof, "lines")
-    assert n == 22 and "tools" not in t and "Uses people" not in t                    # the contradiction lost a side: gone too
-    t2, _, n2 = nodes.COFPsyche().render(cof, "lines", drop_dangerous=False)
+    # decision D3 (3 November): kept by default, marked — a graph generates for the person who built it, it does not act
+    t2, _, n2 = nodes.COFPsyche().render(cof, "lines")
     assert n2 == 24 and "belief · Other people are tools to be used.  ·  dangerous" in t2 and "contradiction · Uses people, preaches empathy." in t2
-    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1, drop_dangerous=False)[0].startswith("belief · Other people")   # core, strength 99
-    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1)[0].startswith("value · Lightness")
+    t, _, n = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
+    assert n == 22 and "tools" not in t and "Uses people" not in t                    # the contradiction lost a side: gone too
+    assert nodes.COFPsyche.INPUT_TYPES()["optional"]["drop_dangerous"][1]["default"] is False
+    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1)[0].startswith("belief · Other people")   # core, strength 99
+    assert nodes.COFPsyche().render(cof, "lines", max_nodes=1, drop_dangerous=True)[0].startswith("value · Lightness")
     assert "content: psyche-dangerous (a psyche node that would make the character harmful" in c.summary("default")
     # a secret contradiction: left out, said once in the soul format, never in lines or prose; shown and marked on request
     synth["elements/psyche/contra1/psyche-node.json"] = dict(orig("elements/psyche/contra1/psyche-node.json"), disclosure="secret")
-    s, _, ns = nodes.COFPsyche().render(cof, "soul")
+    s, _, ns = nodes.COFPsyche().render(cof, "soul", drop_dangerous=True)
     assert ns == 21 and "Preaches slowness" not in s and s.rstrip().endswith("There are things she does not tell.")
-    l, _, nl = nodes.COFPsyche().render(cof, "lines")
+    l, _, nl = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
     assert nl == 21 and "Preaches slowness" not in l and "does not tell" not in l and "Preaches slowness" not in nodes.COFPsyche().render(cof, "prose")[0]
-    s2, _, ns2 = nodes.COFPsyche().render(cof, "soul", include_secret=True)
+    s2, _, ns2 = nodes.COFPsyche().render(cof, "soul", include_secret=True, drop_dangerous=True)
     assert ns2 == 22 and "- Preaches slowness, works at night  ·  secret" in s2 and "does not tell" not in s2
     # an inappropriate node is kept, with a marker; a personal one is a user's data
     synth["elements/psyche/taste2/psyche-node.json"] = dict(orig("elements/psyche/taste2/psyche-node.json"), risk="inappropriate", visibility="personal")
@@ -326,3 +328,29 @@ def test_psyche_risk_secret_personal(pack):
     assert "taste · Hates notifications and interfaces that blink at you.  ·  inappropriate" in l4
     # the persona clause never takes a dangerous or secret node
     assert "Core value: Lightness" in c.persona("default")[0] and "tools" not in c.persona("default")[0]
+
+
+def test_people_places_objects(pack):
+    """RFC 0005 on Clara (example 10 at 1.2, `tests/samples/clara-psyche.cof`): the reader exposes a memory's people,
+    places and objects and a psyche node's own `who` / `where` / `what`; COF Memories names the objects beside the
+    people and places; « what she thinks of X » also matches them (the guitar, an element's label; the notebook, a name)."""
+    nodes, _ = pack
+    from comfyui_cof.cof_reader import COF
+    c = COF(SAMPLES / "clara-psyche.cof")
+    mem = {m["id"]: m for m in c.memories("fr-65")}
+    assert mem["ev5"]["objects"] == ["le pendentif de ma grand-mère"] and mem["ev2"]["objects"] == ["Guitare folk « peace »"]
+    assert mem["ev5"]["people"] and mem["ev2"]["places"] == ["mon atelier personnel face au parc, Lyon"]
+    psy = {n["id"]: n for n in c.psyche("default")}
+    assert psy["hab1"]["objects"] == ["the notebook"] and psy["contra1"]["objects"] == ["Folk guitar with peace motif"]
+    assert psy["val4"]["people"] == ["my grandmother"] and psy["taste1"]["places"] == ["my grandmother's house, at the foot of the Alps"]
+    assert psy["want2"]["places"] == ["Bright studio facing the park"] and psy["stance1"]["people"] == []
+    d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "fr-65", "", 256)[0]
+    text = nodes.COFMemories().recall(d)[0]
+    assert "objects: le pendentif de ma grand-mère_" in text and "· objects: Guitare folk « peace »" in text
+    line = next(l for l in text.splitlines() if "pendentif de ma" in l and l.startswith("_"))
+    assert line.index("where:") < line.index("with:") < line.index("objects:")
+    dd = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "", "", 256)[0]
+    assert any("guitar" in k.lower() for k in psy["contra1"]["keywords"])                   # contra1: its item's label (the focus then drops it,
+    assert "guitar" not in nodes.COFPsyche().render(dd, "lines", focus="guitar")[0]           # as a contradiction without both its sides)
+    assert "Keeps a small recycled-paper notebook" in nodes.COFPsyche().render(dd, "lines", focus="carnet")[0]   # hab1: its own object, any language
+    assert "Co-found a fully ethical" in nodes.COFPsyche().render(dd, "lines", focus="studio")[0]                # want2: its place (an environment)

@@ -638,9 +638,58 @@ class COF:
             cur = str(v.get("media_from") or "").partition("/")[2]
         return False
 
+    # ---- people, places and objects (COF 1.2, RFC 0005; a memory's who / where are RFC 0002) ---------------------
+
+    def _element_label(self, ref: str, lang: str) -> str:
+        """The label of the element a place's `environment` or an object's `item` names, in the wanted half of a bilingual label."""
+        cat, _, vid = str(ref or "").partition("/")
+        return label_in((self.variant(cat, vid) or {}).get("label") or vid, lang) if vid else ""
+
+    def axes(self, n: dict, lang: str) -> dict:
+        """The people, places and objects a memory or a psyche node names, as short texts in the wanted language:
+        {people, places, objects}. An entry shows its label, else its character's name / its element's label (an entry
+        `{"identity": "self"}` is the character itself, not listed). A memory's `where` is one place, a node's a list; a
+        1.1 memory link to an `accessory` variant is read as an object (RFC 0005 § 2.2)."""
+        out = {"people": [], "places": [], "objects": []}
+        add = lambda key, t: t and t not in out[key] and out[key].append(t)
+        for w in n.get("who") or []:
+            if isinstance(w, dict) and w.get("identity") != "self":
+                add("people", text_in(w.get("label"), lang) or (self.identities().get(w.get("identity")) or {}).get("name") or str(w.get("identity") or ""))
+        where = n.get("where")
+        for p in (where if isinstance(where, list) else [where]):
+            if isinstance(p, dict):
+                add("places", text_in(p.get("label"), lang) or self._element_label(p.get("environment"), lang))
+        objs = [o for o in n.get("what") or [] if isinstance(o, dict)]
+        for ln in n.get("links") or []:
+            cat, _, vid = str((ln or {}).get("to", "") if isinstance(ln, dict) else "").partition("/")
+            if cat and cat not in ("memories", "psyche") and (self.variant(cat, vid) or {}).get("kind") == "accessory" and not any(o.get("item") == f"{cat}/{vid}" for o in objs):
+                objs.append({"item": f"{cat}/{vid}"})
+        for o in objs:
+            add("objects", text_in(o.get("label"), lang) or self._element_label(o.get("item"), lang))
+        return out
+
+    def _axes_words(self, n: dict) -> list[str]:
+        """What the people, places and objects of a node can be found by: every language of their labels, a character's
+        names, an element's label (both halves) and id."""
+        words = []
+        where = n.get("where")
+        entries = [w for w in n.get("who") or [] if isinstance(w, dict)] + [p for p in (where if isinstance(where, list) else [where]) if isinstance(p, dict)] \
+            + [o for o in n.get("what") or [] if isinstance(o, dict)]
+        for e in entries:
+            if isinstance(e.get("label"), dict):
+                words += [str(x) for x in e["label"].values()]
+            if e.get("identity") and e["identity"] != "self":
+                words += self._identity_words(str(e["identity"]))
+            for key in ("environment", "item"):
+                if e.get(key):
+                    cat, _, vid = str(e[key]).partition("/")
+                    words += [(self.variant(cat, vid) or {}).get("label") or "", vid]
+        return [x for x in words if isinstance(x, str) and x]
+
     def memories(self, pid: str, include_personal: bool = False) -> list[dict]:
         """The preset's memories in timeline order (by age, else by date and the birth year the file implies, else
-        after the node they link to, undated last): [{id, kind, label, node, lang, gist, when, media}]."""
+        after the node they link to, undated last): [{id, kind, label, node, lang, gist, when, media, explicit, people,
+        places, objects}] — the last three as short texts in the gist's language (RFC 0002 who / where, RFC 0005 what)."""
         vids = [v for v in (self.slots(pid).get("memories") or []) if self.variant("memories", v)]
         nodes = {}
         for v in vids:
@@ -701,7 +750,7 @@ class COF:
                     fig = f"{fig}, {w['date']}" if fig else w["date"]
             out.append({"id": v, "kind": rv.get("kind"), "label": rv.get("label") or v, "node": n, "lang": lang,
                         "gist": g.get(lang, ""), "when": f"{lab} ({fig})" if lab and fig else (lab or fig or "undated"),
-                        "media": self.memory_media(v), "explicit": self.memory_explicit(v)})
+                        "media": self.memory_media(v), "explicit": self.memory_explicit(v), **self.axes(n, lang)})
         return out
 
     # ---- languages of the gists (RFC 0002 § 3 reading rule, shared by memories and psyche) ---------------------------
@@ -731,7 +780,7 @@ class COF:
         return [x for x in out if isinstance(x, str) and x]
 
     def _target_words(self, ref: str) -> list[str]:
-        """What a link or an `about` target can be found by: a memory's label, tags, people and places; a psyche node's
+        """What a link or an `about` target can be found by: a memory's label, tags, people, places and objects; a psyche node's
         label and tags; a character's names."""
         cat, _, vid = str(ref or "").partition("/")
         if cat == "identities":
@@ -748,6 +797,7 @@ class COF:
                         words += self._identity_words(w["identity"])
             where = (n.get("where") or {}).get("label")
             words += list(where.values()) if isinstance(where, dict) else []
+            words += [w for w in self._axes_words({"what": n.get("what")})]          # its objects (RFC 0005)
         elif cat == "psyche" and rv.get("node"):
             n = self.json_at(rv["node"]) or {}
             words += [str(t) for t in (n.get("tags") or [])]
@@ -770,8 +820,9 @@ class COF:
     def psyche(self, pid: str, language: str = "", include_personal: bool = False) -> list[dict]:
         """The preset's psyche nodes (`slots.psyche`, inherited through `extends`) in slot order, each with its gist in the
         wanted language (the one asked, else the preset's, each node falling back to what it has), its weight and axes,
-        the subject of a stance, and the words it can be focused by: [{id, kind, label, node, lang, gist, strength,
-        stability, disclosure, origin, risk, lie, subject, keywords}]. Unknown kinds and fields are kept as they are.
+        the subject of a stance, the people, places and objects it is tied to (`who` / `where` / `what`, RFC 0005), and the
+        words it can be focused by: [{id, kind, label, node, lang, gist, strength, stability, disclosure, origin, risk, lie,
+        subject, keywords, people, places, objects}]. Unknown kinds and fields are kept as they are.
         A file without psyche (1.0, 1.1) gives an empty list. Personal nodes (a user's data) are left out unless asked."""
         vids = [v for v in (self.slots(pid).get("psyche") or []) if self.variant("psyche", v)]
         want = self._wanted(pid, language)
@@ -802,21 +853,23 @@ class COF:
                     words += self._target_words(str(ln.get("to", "")))
                     if isinstance(ln.get("label"), dict):
                         words += [str(x) for x in ln["label"].values()]
+            words += self._axes_words(n)                                          # the people, places and objects it is tied to (RFC 0005)
             out.append({"id": v, "kind": kind, "label": rv.get("label") or v, "node": n, "lang": lang,
                         "gist": " ".join(str(n["gist"].get(lang, "")).split()), "strength": int(strength),
                         "stability": n.get("stability") or "settled", "disclosure": n.get("disclosure") or "open",
                         "origin": n.get("origin") or "authored", "risk": n.get("risk") or "none",
                         "lie": kind == "belief" and bool(n.get("false_but_held")),
                         "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
-                        "keywords": [w for w in words if w]})
+                        "keywords": [w for w in words if w], **self.axes(n, lang)})
         return out
 
     @staticmethod
     def psyche_select(nodes: list[dict], focus: str = "", drop_dangerous: bool = True, max_nodes: int = 0) -> tuple[list[dict], dict]:
-        """RFC 0004 § 3 quinquies, selection at use time. `focus`: keep the nodes whose label, tags, subject or `because` /
-        `about` targets (a memory's label, tags, people, places; a character's names) match the words, plus every `core`
-        node — "what she thinks of X". `drop_dangerous`: the `dangerous` nodes leave (an agent acts; a generator does not,
-        but the default stays on the safe side). `max_nodes`: the strongest N (core first, then by strength, then slot
+        """RFC 0004 § 3 quinquies, selection at use time. `focus`: keep the nodes whose label, tags, subject, people, places
+        and objects (RFC 0005: a name, a character's names, an element's label) or `because` / `about` targets (a memory's
+        label, tags, people, places, objects; a character's names) match the words, plus every `core` node — "what she
+        thinks of X". `drop_dangerous`: the `dangerous` nodes leave — the persona clause always drops them; the COF Psyche
+        node keeps them unless asked (decision D3, 3 November 2026: a graph generates, it does not act). `max_nodes`: the strongest N (core first, then by strength, then slot
         order), 0 = all. A contradiction whose two sides are not both kept is dropped (§ 3 sexies). Returns the kept
         nodes in slot order and what was dropped."""
         stats = {"dangerous": 0, "focus": 0, "limit": 0, "contradictions": 0}
