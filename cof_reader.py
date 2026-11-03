@@ -822,7 +822,8 @@ class COF:
         wanted language (the one asked, else the preset's, each node falling back to what it has), its weight and axes,
         the subject of a stance, the people, places and objects it is tied to (`who` / `where` / `what`, RFC 0005), and the
         words it can be focused by: [{id, kind, label, node, lang, gist, strength, stability, disclosure, origin, risk, lie,
-        subject, keywords, people, places, objects}]. Unknown kinds and fields are kept as they are.
+        aware, valence, until, subject, keywords, people, places, objects}] — `aware` yes / partly / no (default yes), `valence`
+        −100 … +100 on a stance or a taste else None, `until` the point the node ended at else None (RFC 0004 § 3 nonies). Unknown kinds and fields are kept as they are.
         A file without psyche (1.0, 1.1) gives an empty list. Personal nodes (a user's data) are left out unless asked."""
         vids = [v for v in (self.slots(pid).get("psyche") or []) if self.variant("psyche", v)]
         want = self._wanted(pid, language)
@@ -859,6 +860,9 @@ class COF:
                         "stability": n.get("stability") or "settled", "disclosure": n.get("disclosure") or "open",
                         "origin": n.get("origin") or "authored", "risk": n.get("risk") or "none",
                         "lie": kind == "belief" and bool(n.get("false_but_held")),
+                        "aware": n.get("aware") if n.get("aware") in ("yes", "partly", "no") else "yes",
+                        "valence": n["valence"] if kind in ("stance", "taste") and isinstance(n.get("valence"), int) and not isinstance(n.get("valence"), bool) else None,
+                        "until": n.get("until") if isinstance(n.get("until"), dict) else None,
                         "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
                         "keywords": [w for w in words if w], **self.axes(n, lang)})
         return out

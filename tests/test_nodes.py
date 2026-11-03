@@ -241,17 +241,19 @@ def test_psyche_node(pack):
     assert n == 22 and soul.startswith("## Who she is\n")
     assert [l[4:] for l in soul.splitlines() if l.startswith("### ")] == SOUL_ORDER
     assert "- Lightness: do less, better — a page should cost" in soul            # strength 95: the whole gist
-    assert "- Accept being helped\n" in soul and "studio is not one person" not in soul   # strength 65: a short clause
-    assert "- If I slow down, I disappear  ·  lie" in soul and "about: the Martian" in soul and "does not tell" not in soul
-    assert pos.splitlines() == ["toward the Martian: protective curiosity — the one visitor who looked at the sheep before the screens.",
-                                "toward design agencies: no rancour, no return."]
+    assert "- Accept being helped  ·  half aware\n" in soul and "studio is not one person" not in soul   # strength 65: a short clause; aware: partly (§ 3 nonies)
+    assert "- If I slow down, I disappear  ·  lie · acts on it without knowing it — never says it" in soul and "about: the Martian · warmth +60" in soul and "does not tell" not in soul
+    assert "### Tastes\n- Likes:\n  - Loves the smell of paper and a lime tree's shade in August\n- Dislikes:\n  - Hates notifications" in soul
+    assert pos.splitlines() == ["toward the Martian: protective curiosity — the one visitor who looked at the sheep before the screens.  ·  warmth +60",
+                                "toward design agencies: no rancour, no return.  ·  warmth -10"]
     lines, pos2, n2 = nodes.COFPsyche().render(d, "lines")
     rows = lines.splitlines()
     assert n2 == 22 and len(rows) == 22 and rows[0].startswith("wound · Four years") and rows[-1].startswith("contradiction · ") and pos2 == pos
-    assert "need · Accept being helped — a studio is not one person at night." in rows      # lines: always the whole gist
+    assert "need · Accept being helped — a studio is not one person at night.  ·  half aware" in rows      # lines: always the whole gist, the markers
+    assert "stance · Toward agencies: no rancour, no return.  ·  about: design agencies · warmth -10" in rows
     assert [r.split(" · ")[0] for r in rows] == sorted((r.split(" · ")[0] for r in rows), key=nodes.PSYCHE_ORDER.index)
     prose = nodes.COFPsyche().render(d, "prose")[0]
-    assert prose.startswith("Values: Lightness: do less, better; Accessibility") and prose.index("Toward the Martian: protective curiosity; toward design agencies: no rancour") < prose.index("Wound:")
+    assert prose.startswith("Values: Lightness: do less, better; Accessibility") and prose.index("Toward the Martian: protective curiosity (warmth +60); toward design agencies: no rancour, no return (warmth -10).") < prose.index("Wound:")
     assert "\n" not in prose and "sheep before the screens" not in prose              # one paragraph, short clauses
     # focus: "what she thinks of the Martian" = the stance hanging on that memory, plus every core node
     t, p, nf = nodes.COFPsyche().render(d, "lines", focus="the Martian")
@@ -284,6 +286,37 @@ def test_psyche_node(pack):
     assert nodes.COFPsyche().render(d11, "soul") == ("", "", 0) and nodes.COFPsyche().render(d11, "prose", focus="Martien") == ("", "", 0)
     assert "Core value" not in nodes.COFPersonality().text(d11)[0]
     assert "COFPsyche" in nodes.NODE_CLASS_MAPPINGS and nodes.NODE_DISPLAY_NAME_MAPPINGS["COFPsyche"].endswith(" COF Psyche")
+
+
+def test_psyche_awareness_valence_until(pack, tmp_path):
+    """RFC 0004 § 3 nonies on Clara (example 10): the reader exposes `aware`, `valence`, `until`; at 65 she holds bel4 instead
+    of bel3 and contra1; the `soul` output is exactly cof-cli's « Who she is » (`cof psyche text`) for four presets — checked
+    when a cof-cli with § 3 nonies is importable (PYTHONPATH=<cof repository>/cli), skipped otherwise."""
+    nodes, _ = pack
+    from comfyui_cof.cof_reader import COF
+    c = COF(SAMPLES / "clara-psyche.cof")
+    psy = {n["id"]: n for n in c.psyche("default")}
+    assert psy["bel3"]["aware"] == "no" and psy["need1"]["aware"] == "partly" and psy["val1"]["aware"] == "yes"
+    assert psy["stance1"]["valence"] == 60 and psy["stance2"]["valence"] == -10 and psy["taste1"]["valence"] == 70 and psy["taste2"]["valence"] == -80 and psy["val1"]["valence"] is None
+    assert psy["bel3"]["until"] == {"age": {"value": 45, "unit": "years"}, "approx": True} and psy["contra1"]["until"] and psy["val1"]["until"] is None
+    old = {n["id"] for n in c.psyche("fr-65")}
+    assert "bel4" in old and "bel3" not in old and "contra1" not in old and len(old) == 21
+    d65 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "fr-65", "", 256)[0]
+    s65 = nodes.COFPsyche().render(d65, "soul")[0]
+    assert "- Ralentir n'est pas disparaître : le studio tient sans mes nuits\n" in s65 and "### Contradictions" not in s65
+    assert "### Goûts\n- Aime :\n  - Aime l'odeur du papier" in s65 and "envers: le Martien · chaleur +60" in s65
+    P = pytest.importorskip("cof_cli.psyche")
+    if not hasattr(P, "valence_text"):
+        pytest.skip("the cof-cli on the path predates RFC 0004 § 3 nonies")
+    src = tmp_path / "clara"
+    with zipfile.ZipFile(SAMPLES / "clara-psyche.cof") as z:
+        z.extractall(src)
+    m = json.loads((src / "manifest.json").read_text("utf-8"))
+    cn = P.load_nodes(src, m)
+    for pid in ("default", "fr", "fr-65", "en-12"):
+        want = P.soul_section(m, cn, pid)[0]
+        got = nodes.COFPsyche().render(nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), pid, "", 256)[0], "soul")[0]
+        assert got == want, pid
 
 
 def test_psyche_risk_secret_personal(pack):

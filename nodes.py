@@ -650,6 +650,7 @@ PSYCHE_WORDS = {
            "kinds": {"wound": "Wound", "value": "Values", "belief": "Beliefs", "want": "Wants", "need": "Needs", "fear": "Fears", "stance": "Stances",
                      "taste": "Tastes", "habit": "Habits", "contradiction": "Contradictions", "rule": "Rules"},
            "secret": "There are things {pron} does not tell.", "lie": "lie", "guarded": "guarded", "lived": "lived", "about": "about",
+           "partly": "half aware", "unaware": "acts on it without knowing it — never says it", "warmth": "warmth", "likes": "Likes:", "dislikes": "Dislikes:",
            "toward": "toward", "inappropriate": "inappropriate", "dangerous": "dangerous", "secret_mark": "secret"},
     "fr": {"title": "Qui {pron} est", "pron": {"female": "elle", "male": "il"}, "pron_default": "iel",
            "intro": "Rendu depuis les nœuds de la psyché (RFC 0004) dans un ordre fixe : blessure, valeurs, croyances, désirs et besoins, peurs, positions, goûts, habitudes, contradictions, règles. "
@@ -658,6 +659,7 @@ PSYCHE_WORDS = {
            "kinds": {"wound": "Blessure", "value": "Valeurs", "belief": "Croyances", "want": "Désirs", "need": "Besoins", "fear": "Peurs", "stance": "Positions",
                      "taste": "Goûts", "habit": "Habitudes", "contradiction": "Contradictions", "rule": "Règles"},
            "secret": "Il y a des choses qu'{pron} ne dit pas.", "lie": "mensonge", "guarded": "réservé", "lived": "vécu", "about": "envers",
+           "partly": "en partie à son insu", "unaware": "agit ainsi à son insu — ne le dit jamais", "warmth": "chaleur", "likes": "Aime :", "dislikes": "N'aime pas :",
            "toward": "envers", "inappropriate": "inapproprié", "dangerous": "dangereux", "secret_mark": "secret"},
 }
 LANGUAGES = ["(preset)", "en", "fr", "de", "es", "it", "pt", "nl", "ja", "ko", "zh", "ru"]
@@ -667,13 +669,30 @@ def _psyche_words(lang: str) -> dict:
     return PSYCHE_WORDS["fr" if (lang or "").lower().startswith("fr") else "en"]
 
 
+def _valence_text(v: int) -> str:
+    """cof-cli's signed valence: « +60 », « -10 », « 0 »."""
+    return f"{int(v):+d}" if int(v) else "0"
+
+
+def _aware_marks(n: dict, W: dict) -> list[str]:
+    """What the character knows of the node (RFC 0004 § 3 nonies): « half aware », « acts on it without knowing it — never says it »."""
+    return [W["partly"]] if n.get("aware") == "partly" else [W["unaware"]] if n.get("aware") == "no" else []
+
+
+def _warmth(n: dict, W: dict) -> list[str]:
+    """A stance's valence, « warmth +60 » (RFC 0004 § 3 nonies)."""
+    return [f"{W['warmth']} {_valence_text(n['valence'])}"] if n["kind"] == "stance" and n.get("valence") is not None else []
+
+
 def _psyche_marks(n: dict, W: dict, include_secret: bool) -> list[str]:
-    """The markers after a node's text: lie, the subject of a stance, guarded, lived, secret (when shown), inappropriate, dangerous (when kept)."""
+    """The markers after a node's text: lie, the subject of a stance and its warmth, half aware / unaware, guarded, lived,
+    secret (when shown), inappropriate, dangerous (when kept)."""
     marks = []
     if n["lie"]:
         marks.append(W["lie"])
     if n["kind"] == "stance" and n["subject"]:
         marks.append(f"{W['about']}: {n['subject']}")
+    marks += _warmth(n, W) + _aware_marks(n, W)
     if n["disclosure"] == "guarded":
         marks.append(W["guarded"])
     if n["disclosure"] == "secret" and include_secret:
@@ -697,7 +716,8 @@ def _psyche_line(n: dict) -> str:
 
 def psyche_soul(nodes: list[dict], lang: str, pron_gender: str | None, include_secret: bool) -> str:
     """cof-cli's "Who she is" section (RFC 0004 § 3 quinquies), reproduced: title, intro, one heading per kind in the fixed
-    order, one line per node (the whole gist at strength ≥ 70, a short clause below), markers, secret nodes left out with
+    order, one line per node (the whole gist at strength ≥ 70, a short clause below), markers (a stance's warmth, half aware,
+    unaware: RFC 0004 § 3 nonies), tastes split into likes and dislikes when one has a valence, secret nodes left out with
     one line saying so — plus the `inappropriate` / `dangerous` markers cof-cli does not write."""
     W = _psyche_words(lang)
     pron = W["pron"].get(pron_gender or "", W["pron_default"])
@@ -709,7 +729,15 @@ def psyche_soul(nodes: list[dict], lang: str, pron_gender: str | None, include_s
             if n["disclosure"] == "secret" and not include_secret:
                 secret += 1; continue
             marks = _psyche_marks(n, W, include_secret)
-            rows.append(f"- {_psyche_line(n)}" + (f"  ·  {' · '.join(marks)}" if marks else ""))
+            rows.append((n, f"- {_psyche_line(n)}" + (f"  ·  {' · '.join(marks)}" if marks else "")))
+        if kind == "taste" and any(n.get("valence") is not None for n, _ in rows):   # likes (> 0), dislikes (< 0), then the rest
+            likes = [r for n, r in rows if (n.get("valence") or 0) > 0]
+            dislikes = [r for n, r in rows if (n.get("valence") or 0) < 0]
+            plain = [r for n, r in rows if not n.get("valence")]
+            rows = ([f"- {W['likes']}", *("  " + r for r in likes)] if likes else []) + \
+                   ([f"- {W['dislikes']}", *("  " + r for r in dislikes)] if dislikes else []) + plain
+        else:
+            rows = [r for _, r in rows]
         if rows:
             lines += [f"### {W['kinds'].get(kind, kind.capitalize())}", *rows, ""]
     if secret:
@@ -739,20 +767,24 @@ def psyche_prose(nodes: list[dict], lang: str, include_secret: bool) -> str:
     W = _psyche_words(lang)
     shown = [n for n in nodes if include_secret or n["disclosure"] != "secret"]
     sentence = lambda s: s[:1].upper() + s[1:] + ("" if s.endswith(("…", ".", "!", "?")) else ".")
+
+    def marked(n, text):                    # lie, a stance's warmth, half aware / unaware, in parentheses after the clause
+        m = ([W["lie"]] if n["lie"] else []) + _warmth(n, W) + _aware_marks(n, W)
+        return text + (f" ({' · '.join(m)})" if m else "")
     parts = []
-    values = [short_clause(n["gist"]) for n in shown if n["kind"] == "value"]
+    values = [marked(n, short_clause(n["gist"])) for n in shown if n["kind"] == "value"]
     if values:
         parts.append(sentence(f"{W['kinds']['value']}: " + "; ".join(values)))
     stances = []
     for n in shown:
         if n["kind"] == "stance":
             cl = short_clause(n["gist"])
-            stances.append(f"{W['toward']} {n['subject']}: {strip_toward(cl)}" if n["subject"] else cl)
+            stances.append(marked(n, f"{W['toward']} {n['subject']}: {strip_toward(cl)}" if n["subject"] else cl))
     if stances:
         parts.append(sentence("; ".join(stances)))
     rest = sorted((n for n in shown if n["kind"] not in ("value", "stance")), key=lambda n: (-n["strength"], shown.index(n)))[:PROSE_TRAITS]
     for kind, group in _by_kind(rest):
-        parts.append(sentence(f"{W['kinds'].get(kind, kind.capitalize())}: " + "; ".join(short_clause(n["gist"]) + (f" ({W['lie']})" if n["lie"] else "") for n in group)))
+        parts.append(sentence(f"{W['kinds'].get(kind, kind.capitalize())}: " + "; ".join(marked(n, short_clause(n["gist"])) for n in group)))
     return " ".join(parts)
 
 
