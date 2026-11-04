@@ -6,14 +6,22 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const DEFAULT = "(default)";
+// Answers of /cof/* are kept for a few seconds (a node asks the same list several times while a graph loads), never for the
+// life of the page: a .cof rewritten under the same name must show its new presets. The cache is also emptied when the user
+// changes the loader's file / preset / character, and when ComfyUI's node definitions are refreshed (R).
+const TTL = 8000;
 const cache = {};
+const dropCache = () => { for (const k of Object.keys(cache)) delete cache[k]; };
 
 async function getJSON(url) {
-  if (cache[url]) return cache[url];
+  const hit = cache[url];
+  if (hit && Date.now() - hit.t < TTL) return hit.v;
   try {
-    const r = await api.fetchApi(url);
+    const r = await api.fetchApi(url, { cache: "no-store" });
     if (!r.ok) return null;
-    return (cache[url] = await r.json());
+    const v = await r.json();
+    cache[url] = { t: Date.now(), v };
+    return v;
   } catch (e) { return null; }
 }
 const W = (node, n) => node.widgets?.find(w => w.name === n);
@@ -111,14 +119,28 @@ function bigNote(node, tries = 10) {
   tip.dataset.cofBig = "1";
 }
 
+// R (refresh node definitions / combo lists): forget the cached answers and refill every loader's lists
+function onRefreshCombos() {
+  dropCache();
+  for (const n of app.graph?._nodes || []) if (n.comfyClass === "COFLoadCharacter") refreshLoader(n);
+}
+
 app.registerExtension({
   name: "cof.dropdowns",
+  setup() {
+    const rc = app.refreshComboInNodes;
+    if (typeof rc === "function" && !rc.cofWrapped) {
+      const wrapped = async function () { const r = await rc.apply(this, arguments); onRefreshCombos(); return r; };
+      wrapped.cofWrapped = true;
+      app.refreshComboInNodes = wrapped;
+    }
+  },
   nodeCreated(node) { setTimeout(() => bigNote(node), 300); },
   loadedGraphNode(node) { setTimeout(() => bigNote(node), 300); },
   async beforeRegisterNodeDef(nodeType, nodeData) {
     const isLoader = nodeData.name === "COFLoadCharacter", spec = PICKERS[nodeData.name];
     if (!isLoader && !spec) return;
-    const refresh = isLoader ? refreshLoader : refreshPicker;
+    const refresh = isLoader ? n => { dropCache(); return refreshLoader(n); } : refreshPicker;   // a loader's change = fresh answers
     const created = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const r = created?.apply(this, arguments);
