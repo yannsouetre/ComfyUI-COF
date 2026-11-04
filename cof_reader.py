@@ -869,7 +869,7 @@ class COF:
                         "until": n.get("until") if isinstance(n.get("until"), dict) else None,
                         "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
                         "keywords": [w for w in words if w], "media": [str(a) for a in rv.get("media") or [] if isinstance(a, str)],
-                        "age": age_years(rv.get("age")), **self.axes(n, lang)})
+                        "age": age_years(rv.get("age")), "age_raw": rv.get("age"), **self.axes(n, lang)})
         return out
 
     def psyche_illustrations(self, pid: str, nodes: list[dict], allow_intimate: bool) -> tuple[list[tuple[dict, str]], list[str]]:
@@ -889,7 +889,9 @@ class COF:
             if not aid:
                 continue
             who = [w for w in n["node"].get("who") or [] if isinstance(w, dict) and w.get("shown")]
-            self_shown = n.get("age") is not None or any(w.get("identity") == "self" for w in who)
+            # any age written on the variant means the character is shown, even one this reader cannot parse (a bare number
+            # instead of {value, unit}): an unreadable age then counts as unknown for nudity, never as « nobody shown »
+            self_shown = n.get("age") is not None or n.get("age_raw") is not None or any(w.get("identity") == "self" for w in who)
             nude = (self.variant("psyche", n["id"]) or {}).get("nudity") is True or aid in nude_assets
             why = ""
             if self_shown and owner.get("fictional") is False and not owner.get("consent"):
