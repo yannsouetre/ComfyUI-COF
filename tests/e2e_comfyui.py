@@ -177,6 +177,9 @@ ILLUS = {
     "e2e-ill-who.cof": {**SEXUAL_OK, "psyche.contra1": {"nudity": True, "age": Y(30)},
                         "node.contra1": {"who": [{"label": {"en": "a friend", "fr": "une amie"}, "age": Y(16), "shown": True}]},
                         "node.hab1": {"who": [{"label": {"en": "a passer-by", "fr": "un passant"}, "real": True, "shown": True}]}},
+    # contra1 nude at 30 also shows an adult real passer-by (free name): no consent record, so never nude
+    "e2e-ill-realnude.cof": {**SEXUAL_OK, "psyche.contra1": {"nudity": True, "age": Y(30)},
+                             "node.contra1": {"who": [{"label": {"en": "a passer-by", "fr": "un passant"}, "real": True, "age": Y(40), "shown": True}]}},
     # the character is a real person without a consent record; hab1 shows her (age 30), contra1 shows only the guitar
     "e2e-ill-real.cof": {"identity.id1": {"fictional": False, "consent": None}, "psyche.hab1": {"age": Y(30)}},
     # the same real person, with a consent record (image only)
@@ -686,23 +689,36 @@ def test_illus_age_of_an_illustration_makes_the_preset_a_minor():
 
 
 def test_illus_nudity_with_a_minor_shown_and_real_person_without_consent():
+    """contra1 is nude and shows a 16-year-old: never. hab1 is not nude and shows a real passer-by (free name, no consent
+    record): given, as a memory image would be, with the console warning (D9: consent mandatory for nudity only)."""
     need("e2e-ill-who.cof")
     for allow in (False, True):
         ui, b, _, _, log = illus("e2e-ill-who.cof", allow_intimate=allow)
-        assert ui == [] and b == BLANK, (allow, ui)
+        assert ui == ["hab1"] and real_batch(b, 1), (allow, ui)
         if log is not None:
-            assert "hab1 (a real person without a consent record)" in log, log
+            assert "hab1 (" not in log, log
             assert ("contra1 (nudity with a person under 18 or of unknown age)" if allow else "contra1 (nudity)") in log, log
+            assert "real person without a consent record — you are responsible" in log, log
 
 
-def test_illus_real_person_needs_a_consent_record():
+def test_illus_real_person_without_consent_like_memory_images():
+    """A real character without a consent record: her illustration is given (consent recommended, mandatory only for nudity —
+    the rule of memory images and reference images, D9), with the console warning; with a consent record too."""
     need("e2e-ill-real.cof")
     for allow in (False, True):
         ui, b, _, _, log = illus("e2e-ill-real.cof", allow_intimate=allow)
-        assert ui == ["contra1"] and real_batch(b, 1), (allow, ui)  # the guitar alone is not the person
-        assert log is None or "hab1 (a real person without a consent record)" in log, log
+        assert ui == ["hab1", "contra1"] and real_batch(b, 2), (allow, ui)
+        assert log is None or "real person without a consent record — you are responsible" in log, log
     ui, b, _, _, _ = illus("e2e-ill-realok.cof")
     assert ui == ["hab1", "contra1"] and real_batch(b, 2)
+
+
+def test_illus_nudity_of_a_real_person_without_the_matching_consent():
+    """contra1 nude, an adult real passer-by (free name) shown: held even with allow_intimate — a `who[].real` person has no consent record."""
+    need("e2e-ill-realnude.cof")
+    ui, b, _, _, log = illus("e2e-ill-realnude.cof", allow_intimate=True)
+    assert ui == ["hab1"] and real_batch(b, 1), ui
+    assert log is None or "contra1 (nudity of a real person without the matching consent)" in log, log
 
 
 def test_illus_nude_asset_of_an_appearance_variant():

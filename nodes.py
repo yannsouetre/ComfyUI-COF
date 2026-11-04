@@ -848,10 +848,13 @@ def _psyche_language_choices(c: COF, pid: str, include_personal: bool = False) -
 
 def _psyche_illustrations(c: COF, cof: dict, pid: str, shown: list[dict]) -> list[Image.Image]:
     """The illustrations (first image of each node's media) of the nodes the text holds, under the rules of memory images:
-    nudity only with the loader's `allow_intimate` (already refused to a minor preset), a real person without a consent record never."""
+    nudity only with the loader's `allow_intimate` (already refused to a minor preset) and never of a real person without the
+    matching consent; outside nudity a real person's image is given as memory images are, with the console warning (D9)."""
     pairs, held = c.psyche_illustrations(pid, shown, bool(cof.get("allow_intimate")))
     if held:
         print(f"[COF] psyche: {_plural(len(held), 'illustration')} held back — {', '.join(held)}")
+    if pairs and (c.is_real_without_consent(pid) or any(w.get("real") is True and w.get("shown") for n, _ in pairs for w in n["node"].get("who") or [] if isinstance(w, dict))):
+        print("[COF] WARNING: real person without a consent record — you are responsible for this use (COF § 9.2)")
     images = []
     for _, aid in pairs:                                              # a damaged illustration is skipped: it decorates a node, it is not the node
         try:
@@ -893,7 +896,7 @@ class COFPsyche:
                              "include_secret": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked secret (what the character never tells) — off: left out, with one line saying so in the soul format"}),
                              "drop_dangerous": ("BOOLEAN", {"default": False, "tooltip": "off (default): the nodes whose declared risk is dangerous (would make the character harmful if it acted on them) are kept, marked « dangerous » in the text — a ComfyUI graph generates for the person who built it, it does not act, and fiction needs villains. Tick it to leave them out (and the contradictions that lose a side). inappropriate nodes are always kept, with a marker. cof-cli's agent export still drops dangerous nodes: an agent acts"}),
                              "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked personal (a user's data, never shared by default)"}),
-                             "show_illustrations": ("BOOLEAN", {"default": False, "tooltip": "show, in this node, the illustration of each node it outputs (the first image of its media, RFC 0004 § 3 decies), like a Preview Image. Nudity only when the loader's allow_intimate permits it (as memory images); the image of a real person without a consent record is never shown"}),
+                             "show_illustrations": ("BOOLEAN", {"default": False, "tooltip": "show, in this node, the illustration of each node it outputs (the first image of its media, RFC 0004 § 3 decies), like a Preview Image. Nudity only when the loader's allow_intimate permits it and never of a real person without the matching consent — the same safeguards as memory images"}),
                              "output_illustrations": ("BOOLEAN", {"default": False, "tooltip": "also output those images as a batch on the last output (a blank 64×64 image when there are none, or when this is off). Same safeguards as show_illustrations"})}}
 
     @classmethod

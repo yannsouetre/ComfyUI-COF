@@ -878,9 +878,10 @@ class COF:
         an image marked `nudity` (the variant's flag, or an asset an appearance / intimate variant of the file marks) only
         when `allow_intimate` is true — the value the loader gives, which already needs a preset of 18 or over (its safety age
         reads the ages the illustrations carry), the preset's `allowSexualUsage` and, for a real person, the `intimate`
-        consent — and then only if every person shown is of a known age of 18 or more (and, for a real one, consents to
-        nudity); the image of a real person (the character, an identity of the cast, or a `who[].real` person) without a
-        consent record is never given, whatever the options."""
+        consent — and then only if every person shown is of a known age of 18 or more and no real person shown lacks the
+        matching consent (a cast identity without `nudity` / `intimate` in its consent scope, a `who[].real` person, who has
+        none). Outside nudity a real person's image is given like a memory image or a reference image (the format: consent
+        recommended, mandatory for nudity and intimate content; Yann's decision D9, 4 Nov. 2026) — the console warns."""
         nude_assets = self.nude_assets() | {a for vid in self.variants("memories") if self.memory_explicit(vid) for a in self.memory_media(vid)}
         out, held = [], []
         owner = self.identity(self.owner(pid))
@@ -894,13 +895,8 @@ class COF:
             self_shown = n.get("age") is not None or n.get("age_raw") is not None or any(w.get("identity") == "self" for w in who)
             nude = (self.variant("psyche", n["id"]) or {}).get("nudity") is True or aid in nude_assets
             why = ""
-            if self_shown and owner.get("fictional") is False and not owner.get("consent"):
-                why = "a real person without a consent record"
             people = [(w, self.identity(w["identity"]) if w.get("identity") not in (None, "self") and w.get("identity") in self.identities() else None) for w in who if w.get("identity") != "self"]
-            for w, I in people:
-                if not why and ((I is None and w.get("real") is True) or (I is not None and I.get("fictional") is False and not I.get("consent"))):
-                    why = "a real person without a consent record"
-            if nude and not why:
+            if nude:
                 if not allow_intimate:
                     why = "nudity"
                 else:
@@ -909,7 +905,8 @@ class COF:
                         why = "nudity with nobody declared shown"
                     elif any(a is None or a < ADULT for a in ages):
                         why = "nudity with a person under 18 or of unknown age"
-                    elif any(I is not None and I.get("fictional") is False and not {"nudity", "intimate"} & set((I.get("consent") or {}).get("scope") or []) for _, I in people):
+                    elif (self_shown and owner.get("fictional") is False and not {"nudity", "intimate"} & set((owner.get("consent") or {}).get("scope") or [])) \
+                            or any((I is None and w.get("real") is True) or (I is not None and I.get("fictional") is False and not {"nudity", "intimate"} & set((I.get("consent") or {}).get("scope") or [])) for w, I in people):
                         why = "nudity of a real person without the matching consent"
             if why:
                 held.append(f"{n['id']} ({why})")

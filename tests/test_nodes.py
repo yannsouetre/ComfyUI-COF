@@ -519,15 +519,20 @@ def test_psyche_illustrations_follow_the_safeguards_of_memory_images(pack):
     # an image an appearance variant of the file marks as nudity is nude wherever a node reuses it
     reused = _illustrated(pack, lambda m: (m["elements"]["appearance"]["variants"]["x1"].update(nudity=True), age(m, "contra1", 29)), shown_self)
     assert n_of(reused) == 1
-    # a real person without a consent record: never, even with the opt-ins; with a consent record the ordinary image is shown
+    # a real person without a consent record: an ordinary (clothed) illustration is given, as memory and reference images are
+    # (consent recommended, mandatory only for nudity — Yann's decision D9, 4 Nov. 2026); with a consent record too
     def real(m, consent=None):
         I = m["identities"]["id1"]; I["fictional"] = False
         if consent:
             I["consent"] = consent
         age(m, "contra1", 29)
-    assert n_of(_illustrated(pack, real, shown_self, allow=True, sexual=True)) == 1
+    assert n_of(_illustrated(pack, real, shown_self, allow=True, sexual=True)) == 2
     assert n_of(_illustrated(pack, lambda m: real(m, {"scope": ["conversational-persona"]}), shown_self)) == 2
     assert n_of(_illustrated(pack, lambda m: real(m, {"scope": ["conversational-persona"]}), {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"identity": "self", "shown": True}]),}, allow=True, sexual=True)) == 2   # nothing nude here
-    # an unmodelled real person shown (who[].real): no consent record can exist, never shown
+    # a real character shown nude: only with the loader's allow_intimate, which needs her `intimate` consent
+    assert n_of(_illustrated(pack, lambda m: (real(m, {"scope": ["image"]}), nude(m, "contra1")), shown_self, allow=True, sexual=True)) == 1
+    # an unmodelled real person shown (who[].real): an ordinary image is given; nude, never (no consent record can exist)
     other = {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"label": {"en": "a passer-by"}, "shown": True, "real": True}])}
-    assert n_of(_illustrated(pack, None, other)) == 1
+    assert n_of(_illustrated(pack, None, other)) == 2
+    other_nude = {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"identity": "self", "shown": True}, {"label": {"en": "a passer-by"}, "shown": True, "real": True, "age": {"value": 40, "unit": "years"}}])}
+    assert n_of(_illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 29)), other_nude, allow=True, sexual=True)) == 1
