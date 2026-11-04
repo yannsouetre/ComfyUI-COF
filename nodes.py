@@ -230,6 +230,17 @@ class COFLoadCharacter:
     def VALIDATE_INPUTS(cls, preset, character):
         return True                      # older workflows may give a preset id or label as free text
 
+    @classmethod
+    def IS_CHANGED(cls, cof_file, **kw):
+        """A .cof rewritten under the same name (rebuilt in the builder, saved over) must run again: ComfyUI otherwise keeps the
+        loader's cached output — a COF object still reading the old file — until its inputs change or it restarts."""
+        path = folder_paths.get_full_path("cof", cof_file) if folder_paths else cof_file
+        try:
+            st = os.stat(path)
+        except (OSError, TypeError):
+            return ""
+        return f"{st.st_mtime_ns}:{st.st_size}"
+
     RETURN_TYPES = ("COF", "IMAGE", "IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("cof", "primary_image", "references", "prompt", "info")
     OUTPUT_TOOLTIPS = ("the loaded character, for the advanced COF nodes",
