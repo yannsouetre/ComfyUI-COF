@@ -904,7 +904,7 @@ class COFPsyche:
     RETURN_NAMES = ("text", "positions", "count", "illustrations")
     OUTPUT_TOOLTIPS = ("the psyche in the chosen format (empty for a file without psyche)",
                        "the stances only, one per line: toward X: …", "how many nodes the text holds",
-                       "the illustrations of the nodes the text holds, one image each, when output_illustrations is on; otherwise, or when there is none, a blank 64×64 image (the console says why)")
+                       "the illustrations of the nodes the text holds, one image each, when output_illustrations is on; otherwise a blank 64×64 image; when it is on and the image is blank, the console says why")
     FUNCTION = "render"
     CATEGORY = "COF"
     DESCRIPTION = ("The character's psyche (COF 1.2): values, beliefs, wants, fears, stances… as text for a prompt, in cof-cli's SOUL.md order. "
@@ -921,6 +921,8 @@ class COFPsyche:
         lang = "" if lang in ("", "(preset)") else lang
         nodes = c.psyche(pid, lang, include_personal)
         if not nodes:
+            if show_illustrations or output_illustrations:
+                print("[COF] psyche: this preset has no psyche (a 1.0 / 1.1 file, or no psyche in its slots) — no illustration, blank 64×64 image")
             return self._result("", "", 0, [], show_illustrations)
         kept, stats = c.psyche_select(nodes, focus, drop_dangerous, max_nodes)
         out_lang = lang or (c._wanted(pid) or ["en"])[0]

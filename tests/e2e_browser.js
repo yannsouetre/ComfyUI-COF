@@ -131,6 +131,87 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   check('queueing from the UI succeeds', resp.status === 'success', resp.out);
   await page.screenshot({ path: path.join(OUT, 'browser-after-run.png') });
 
+  // 0.7.0: the two illustration widgets — defaults, then a run from the UI with show_illustrations on / off (preset en-65: hab1 is illustrated)
+  const runPs = async (show, output, focus = '') => page.evaluate(async ([show, output, focus]) => {
+    const g = window.app.graph; const ps = g._nodes.find(x => x.comfyClass === 'COFPsyche');
+    const w = k => ps.widgets.find(x => x.name === k);
+    const defaults = { show: w('show_illustrations').value, output: w('output_illustrations').value };
+    const set = (k, v) => { w(k).value = v; w(k).callback?.(v); };          // as a click does: value, then the widget's callback
+    set('show_illustrations', show); set('output_illustrations', output); w('focus').value = focus;
+    const p = await window.app.graphToPrompt();
+    const sent = Object.values(p.output).find(x => x.class_type === 'COFPsyche').inputs;
+    const before = Object.keys(await (await fetch('/history?max_items=1000')).json()).length;
+    await window.app.queuePrompt(0, 1);
+    let e = null;
+    for (let i = 0; i < 120 && !e; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      const h = await (await fetch('/history?max_items=1000')).json(); const ks = Object.keys(h);
+      if (ks.length > before) e = h[ks[ks.length - 1]];
+    }
+    await new Promise(r => setTimeout(r, 1500));
+    const out = e && e.outputs[String(ps.id)];
+    const imgs = (ps.imgs || []).filter(im => im && im.complete && im.naturalWidth > 0).map(im => [im.naturalWidth, im.naturalHeight]);
+    return { defaults, sent: { show: sent.show_illustrations, output: sent.output_illustrations }, status: e && e.status.status_str,
+      images: (out && out.images) ? out.images.length : 0, nodeImgs: imgs };
+  }, [show, output, focus]);
+  const on = await runPs(true, false);
+  check('COF Psyche illustration widgets default to off', on.defaults.show === false && on.defaults.output === false, JSON.stringify(on.defaults));
+  check('show_illustrations / output_illustrations travel in the prompt', on.sent.show === true && on.sent.output === false, JSON.stringify(on.sent));
+  check('show_illustrations on: the node shows the illustration (en-65: 1, hab1)', on.status === 'success' && on.images === 1 && on.nodeImgs.length === 1, JSON.stringify(on));
+  await page.screenshot({ path: path.join(OUT, 'browser-psyche-illustrations.png') });
+  const off = await runPs(false, true);
+  check('show_illustrations off: no image in the node output, and the earlier preview is gone', off.status === 'success' && off.images === 0 && off.nodeImgs.length === 0, JSON.stringify(off));
+  await runPs(true, false);
+  const none = await runPs(true, false, 'zzzz-no-match');
+  check('show_illustrations on, no illustrated node selected: no preview left on the node', none.status === 'success' && none.images === 0 && none.nodeImgs.length === 0, JSON.stringify(none));
+
+  // a COF Psyche saved before 0.7.0 (7 widget values) loads: values land on the right widgets, the 2 new ones default to off
+  const old = await page.evaluate(async () => {
+    const s = window.app.graph.serialize();
+    const n = s.nodes.find(x => x.type === 'COFPsyche');
+    n.widgets_values = ['soul', '(preset)', 'guitar', 7, true, true, true];
+    n.outputs = n.outputs.slice(0, 3);
+    await window.app.loadGraphData(s);
+    await new Promise(r => setTimeout(r, 1500));
+    const ps = window.app.graph._nodes.find(x => x.comfyClass === 'COFPsyche');
+    return { values: Object.fromEntries(ps.widgets.map(w => [w.name, w.value])), outputs: ps.outputs.map(o => o.name) };
+  });
+  const v = old.values;
+  check('pre-0.7.0 COF Psyche (7 widget values) loads with its values', v.format === 'soul' && v.focus === 'guitar' && v.max_nodes === 7 && v.include_secret === true
+    && v.drop_dangerous === true && v.include_personal === true && v.show_illustrations === false && v.output_illustrations === false, JSON.stringify(v));
+  check('pre-0.7.0 COF Psyche gets the 4th output', old.outputs.join(',') === 'text,positions,count,illustrations', old.outputs.join(','));
+
+  // every workflow in workflows/ loads; widget counts of the UI form match the nodes, API forms load through loadApiJson
+  for (const f of fs.readdirSync(path.join(__dirname, '..', 'workflows')).filter(x => x.endsWith('.json')).sort()) {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'workflows', f), 'utf8'));
+    const r = await page.evaluate(async ([data, f]) => {
+      try {
+        if (data.nodes) await window.app.loadGraphData(structuredClone(data)); else await window.app.loadApiJson(structuredClone(data), f);
+      } catch (e) { return { err: String(e) }; }
+      await new Promise(r => setTimeout(r, 2000));
+      const g = window.app.graph._nodes; const bad = [];
+      for (const n of g) {
+        if (!n.comfyClass) continue;
+        if (!window.LiteGraph.registered_node_types[n.comfyClass]) bad.push('unknown ' + n.comfyClass);
+        if (data.nodes) {
+          const src = data.nodes.find(x => String(x.id) === String(n.id)); if (!src) { bad.push(`${n.comfyClass}#${n.id}: not in the file`); continue; } const wv = (src && src.widgets_values) || [];
+          const ws = (n.widgets || []).filter(w => w.serialize !== false && w.options?.serialize !== false);
+          if (Array.isArray(wv) && wv.length !== ws.length) bad.push(`${n.comfyClass}#${n.id}: ${wv.length} values vs ${ws.length} widgets`);
+        } else {
+          const src = data[String(n.id)];
+          if (src) for (const [k, val] of Object.entries(src.inputs)) {
+            if (Array.isArray(val)) continue;
+            const w = (n.widgets || []).find(x => x.name === k);
+            if (!w) bad.push(`${n.comfyClass}#${n.id}: no widget ${k}`); else if (String(w.value).split(' — ')[0] !== String(val)) bad.push(`${n.comfyClass}#${n.id}.${k}: ${JSON.stringify(w.value)} vs ${JSON.stringify(val)}`);
+          }
+        }
+      }
+      return { nodes: g.length, cof: g.filter(n => (n.comfyClass || '').startsWith('COF')).length, bad };
+    }, [data, f]);
+    const expected = data.nodes ? data.nodes.length : Object.keys(data).length;
+    check(`workflow ${f} loads with matching widgets`, !r.err && r.nodes === expected && r.bad.length === 0, r.err || `${r.nodes}/${expected} nodes, ${r.cof} COF${r.bad.length ? ' — ' + r.bad.slice(0, 5).join(' | ') : ''}`);
+  }
+
   check('no console error / page error', errors.length === 0, errors.slice(0, 5).join(' | '));
   check('no failed request to the COF routes / extension', !bad.some(u => /cof/i.test(u)), bad.slice(0, 6).join(' | '));
   fs.writeFileSync(path.join(OUT, 'browser-results.json'), JSON.stringify({ results, errors, bad }, null, 1));

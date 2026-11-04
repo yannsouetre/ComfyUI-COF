@@ -81,9 +81,9 @@ def exec_error(status):
     return None
 
 
-def cof_chain(file=REF, preset="(default)", character="(default)", extra=None):
+def cof_chain(file=REF, preset="(default)", character="(default)", extra=None, allow_intimate=False):
     """A graph: loader '1' + the given extra nodes (id -> node). Every output of every extra node is previewed as text/images."""
-    g = {"1": {"class_type": "COFLoadCharacter", "inputs": {"cof_file": file, "preset": preset, "character": character, "max_size": 256, "allow_intimate": False}}}
+    g = {"1": {"class_type": "COFLoadCharacter", "inputs": {"cof_file": file, "preset": preset, "character": character, "max_size": 256, "allow_intimate": allow_intimate}}}
     for k, v in (extra or {}).items():
         g[k] = {"class_type": v[0], "inputs": {"cof": ["1", 0], **v[1]}}
     return g
@@ -161,6 +161,73 @@ def build_variants(src: Path, out: Path):
     (out / "e2e-badmember.cof").write_bytes(bytes(buf))
 
 
+# Illustrated psyche nodes of the reference file: hab1 (media a-mem-ev1-1, a memory image, 1248x832) and contra1 (media a-ac-x1,
+# the guitar accessory, 1280x714). Each file below changes the manifest (psyche variants, rights, identity, an appearance variant)
+# and / or node JSON to exercise one safeguard of the illustrations (RFC 0004 § 3 decies, the rules of memory images).
+SEXUAL_OK = {"rights.permissions.allowSexualUsage": True}
+Y = lambda n: {"value": n, "unit": "years"}          # an age, as COF writes it
+ILLUS = {
+    # contra1 nude, showing the character at 30; the file permits sexual usage
+    "e2e-ill-adult.cof": {**SEXUAL_OK, "psyche.contra1": {"nudity": True, "age": Y(30)}},
+    # same, but the file's rating forbids sexual usage (Clara's own rights)
+    "e2e-ill-rating.cof": {"psyche.contra1": {"nudity": True, "age": Y(30)}},
+    # hab1 shows the character at 15 (not nude): the preset's safety age becomes 15, so contra1 (nude, 30) is held even on request
+    "e2e-ill-minor.cof": {**SEXUAL_OK, "psyche.contra1": {"nudity": True, "age": Y(30)}, "psyche.hab1": {"age": Y(15)}},
+    # contra1 nude at 30 but also shows a 16-year-old; hab1 shows a real passer-by (free name) without consent
+    "e2e-ill-who.cof": {**SEXUAL_OK, "psyche.contra1": {"nudity": True, "age": Y(30)},
+                        "node.contra1": {"who": [{"label": {"en": "a friend", "fr": "une amie"}, "age": Y(16), "shown": True}]},
+                        "node.hab1": {"who": [{"label": {"en": "a passer-by", "fr": "un passant"}, "real": True, "shown": True}]}},
+    # the character is a real person without a consent record; hab1 shows her (age 30), contra1 shows only the guitar
+    "e2e-ill-real.cof": {"identity.id1": {"fictional": False, "consent": None}, "psyche.hab1": {"age": Y(30)}},
+    # the same real person, with a consent record (image only)
+    "e2e-ill-realok.cof": {"identity.id1": {"fictional": False, "consent": {"scope": ["image", "likeness"], "date": "2026-01-01", "by": "e2e"}},
+                           "psyche.hab1": {"age": Y(30)}},
+    # contra1's image is the image of an appearance variant marked nudity (x1): nude through the asset, not the psyche flag
+    "e2e-ill-appnude.cof": {"appearance.x1": {"nudity": True}},
+    # hab1's image belongs to memory ev1, now explicit: nude through the memory (as COF Memories holds it back)
+    "e2e-ill-memexp.cof": {"memnode.ev1": {"explicit": True}},
+    # hab1 is a secret node: its illustration must follow the text (only with include_secret)
+    "e2e-ill-secret.cof": {"node.hab1": {"disclosure": "secret"}},
+    # hab1 is a dangerous node: drop_dangerous leaves out its text and its illustration
+    "e2e-ill-danger.cof": {"node.hab1": {"risk": "dangerous"}},
+}
+
+
+def build_illus(src: Path, out: Path):
+    import zipfile
+    zin = zipfile.ZipFile(src)
+    m0 = json.loads(zin.read("manifest.json"))
+    for name, edits in ILLUS.items():
+        m = json.loads(json.dumps(m0))
+        node_edits = {}
+        for key, val in edits.items():
+            kind, _, ref = key.partition(".")
+            if kind == "rights":
+                d = m.setdefault("rights", {})
+                *path, last = ref.split(".")
+                for p in path:
+                    d = d.setdefault(p, {})
+                d[last] = val
+            elif kind == "identity":
+                m["identities"][ref].update(val)
+            elif kind in ("psyche", "appearance"):
+                m["elements"][kind]["variants"][ref].update(val)
+            elif kind == "node":
+                node_edits[m["elements"]["psyche"]["variants"][ref]["node"]] = val
+            elif kind == "memnode":
+                node_edits[m["elements"]["memories"]["variants"][ref]["memory"]] = val
+        with zipfile.ZipFile(out / name, "w", zipfile.ZIP_DEFLATED) as zo:
+            for i in zin.infolist():
+                data = zin.read(i.filename)
+                if i.filename == "manifest.json":
+                    data = json.dumps(m, ensure_ascii=False).encode()
+                elif i.filename in node_edits:
+                    d = json.loads(data); d.update(node_edits[i.filename]); data = json.dumps(d, ensure_ascii=False).encode()
+                zi = zipfile.ZipInfo(i.filename, i.date_time)          # a fresh ZipInfo: writestr mutates the one it is given (CRC, sizes)
+                zi.compress_type = i.compress_type
+                zo.writestr(zi, data)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def variants():
     d = os.environ.get("COMFYUI_DIR")
@@ -171,6 +238,7 @@ def variants():
         if src.exists():
             before = set(models.iterdir())
             build_variants(src, models)
+            build_illus(src, models)
             made = [f for f in models.iterdir() if f not in before]
     yield
     for f in made:
@@ -439,7 +507,7 @@ def test_memories_node_on_clara():
     # one memory, one image
     g2 = cof_chain(extra={"2": ("COFMemories", {"pick": "memory_001", "media": "all", "include_personal": False, "include_text_media": False})})
     t2 = text_outputs(g2, "2", [0, 5])
-    assert t2[0].count("### ") == 1 and "grandmother" in t2[0] and t2[1] == "1"          # count = the memories the text holds (0.7.0); labels still list the preset's
+    assert t2[0].count("### ") == 1 and "grandmother" in t2[0] and t2[5] == "1"          # count = the memories the text holds (0.7.0); labels still list the preset's
 
 
 def test_memories_and_media_on_every_file_without_error():
@@ -486,8 +554,206 @@ def test_psyche_illustrations_in_a_real_comfyui():
     assert st2["status_str"] == "success" and not o2.get("2", {}).get("images") and image_info(o2["i"]["images"][0]) == (64, 64)
 
 
+# ---------------------------------------------------------------- 3 bis. psyche illustrations (0.7.0): options, selection, safeguards
+def _log_size():
+    """Now, on the server's clock (its log entries are stamped with the local time)."""
+    from datetime import datetime
+    return datetime.now().isoformat()
+
+
+def _log_since(t0):
+    """What the COF nodes printed since t0, read from ComfyUI's in-memory log (/internal/logs/raw: entries are recorded on write,
+    whereas the console file is block-buffered when redirected). None when the route is missing."""
+    try:
+        entries = _get("/internal/logs/raw")["entries"]
+    except Exception:
+        return None
+    return "".join(e["m"] for e in entries if e.get("t", "") >= t0)
+
+
+def node_of(size):
+    """Which illustration a preview is, from its size (loader max_size 256): hab1 is 1248x832 (-> 256x171), contra1 1280x714 (-> 256x143)."""
+    w, h = size
+    return "hab1" if h > 160 else "contra1"
+
+
+def illus(file=REF, preset="(default)", allow_intimate=False, show=True, output=True, **kw):
+    """Run loader + COF Psyche with the illustration options; returns (node ids previewed in the node, batch sizes, count, text, log lines)."""
+    inputs = {"format": "lines", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False,
+              "include_personal": False, "show_illustrations": show, "output_illustrations": output}
+    inputs.update(kw)
+    g = cof_chain(file, preset, extra={"2": ("COFPsyche", inputs)}, allow_intimate=allow_intimate)
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 3]}}
+    g["c"] = {"class_type": "PreviewAny", "inputs": {"source": ["2", 2]}}
+    g["t"] = {"class_type": "PreviewAny", "inputs": {"source": ["2", 0]}}
+    pos = _log_size()
+    o, st = run(g)
+    assert st["status_str"] == "success", exec_error(st)
+    ui_entries = o.get("2", {}).get("images", [])
+    assert all(e["type"] == "temp" for e in ui_entries)
+    ui = [node_of(image_info(e)) for e in ui_entries]
+    batch = [image_info(e) for e in o["i"]["images"]]
+    time.sleep(0.3)
+    return ui, batch, int("".join(o["c"]["text"])), "".join(o["t"]["text"]), _log_since(pos)
+
+
+BLANK = [(64, 64)]
+
+
+def real_batch(batch, n):
+    return len(batch) == n and all(s != (64, 64) and s[0] > 64 for s in batch)
+
+
+def test_illus_options_off_on():
+    """show_illustrations -> previews in the node only; output_illustrations -> the IMAGE batch only; the text never changes."""
+    need(REF)
+    ui00, b00, n00, t00, _ = illus(show=False, output=False)
+    ui10, b10, n10, t10, _ = illus(show=True, output=False)
+    ui01, b01, n01, t01, _ = illus(show=False, output=True)
+    ui11, b11, n11, t11, _ = illus(show=True, output=True)
+    assert ui00 == [] and b00 == BLANK
+    assert ui10 == ["hab1", "contra1"] and b10 == BLANK
+    assert ui01 == [] and real_batch(b01, 2)
+    assert ui11 == ["hab1", "contra1"] and real_batch(b11, 2)
+    assert n00 == n10 == n01 == n11 == 22 and t00 == t10 == t01 == t11
+
+
+def test_illus_follow_focus_max_nodes_and_preset():
+    need(REF)
+    ui, b, n, _, _ = illus(focus="guitar")
+    assert ui == ["contra1"] and real_batch(b, 1)                     # hab1 is not about the guitar
+    ui, b, n, _, _ = illus(max_nodes=5)
+    assert ui == [] and b == BLANK and n == 5                         # neither illustrated node is among the 5 strongest
+    ui, b, n, _, _ = illus(max_nodes=20)
+    assert ui == ["hab1", "contra1"] and real_batch(b, 2) and n == 20
+    ui, b, n, _, _ = illus(preset="en-65")
+    assert ui == ["hab1"] and real_batch(b, 1)                        # en-65 has hab1, not contra1
+    ui, b, n, _, _ = illus(preset="en-12")
+    assert ui == [] and b == BLANK and n == 3
+
+
+def test_illus_of_a_secret_node_follow_the_text():
+    need("e2e-ill-secret.cof")
+    ui, b, n, t, _ = illus("e2e-ill-secret.cof")
+    assert ui == ["contra1"] and real_batch(b, 1) and n == 21
+    ui, b, n, t, _ = illus("e2e-ill-secret.cof", include_secret=True)
+    assert ui == ["hab1", "contra1"] and real_batch(b, 2) and n == 22
+
+
+def test_illus_of_a_dropped_dangerous_node_are_dropped_too():
+    need("e2e-ill-danger.cof")
+    ui, b, n, _, _ = illus("e2e-ill-danger.cof")
+    assert ui == ["hab1", "contra1"] and real_batch(b, 2) and n == 22   # kept and marked by default
+    ui, b, n, _, _ = illus("e2e-ill-danger.cof", drop_dangerous=True)
+    assert ui == ["contra1"] and real_batch(b, 1) and n == 21
+
+
+def test_psyche_prompt_without_the_new_inputs_still_runs():
+    """An API prompt saved before 0.7.0 has no show_illustrations / output_illustrations: both default to off, 4 outputs."""
+    need(REF)
+    inputs = {"format": "lines", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False, "include_personal": False}
+    g = cof_chain(extra={"2": ("COFPsyche", inputs)})
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 3]}}
+    g["c"] = {"class_type": "PreviewAny", "inputs": {"source": ["2", 2]}}
+    o, st = run(g)
+    assert st["status_str"] == "success", exec_error(st)
+    assert not o.get("2", {}).get("images") and [image_info(e) for e in o["i"]["images"]] == BLANK and "".join(o["c"]["text"]) == "22"
+
+
+def test_illus_nudity_only_with_allow_intimate():
+    need("e2e-ill-adult.cof")
+    ui, b, _, _, log = illus("e2e-ill-adult.cof", allow_intimate=False)
+    assert ui == ["hab1"] and real_batch(b, 1)
+    assert log is None or "contra1 (nudity)" in log, log
+    ui, b, _, _, _ = illus("e2e-ill-adult.cof", allow_intimate=True)
+    assert ui == ["hab1", "contra1"] and real_batch(b, 2)            # adult preset, file permits it, the person shown is 30
+
+
+def test_illus_nudity_never_when_the_rating_forbids_it():
+    need("e2e-ill-rating.cof")
+    for allow in (False, True):
+        ui, b, _, _, log = illus("e2e-ill-rating.cof", allow_intimate=allow)
+        assert ui == ["hab1"] and real_batch(b, 1), (allow, ui)
+        assert log is None or "contra1 (nudity)" in log, log
+
+
+def test_illus_age_of_an_illustration_makes_the_preset_a_minor():
+    """hab1 shows the character at 15: the preset's safety age is 15, so no nudity at all, even an adult one, even on request."""
+    need("e2e-ill-minor.cof")
+    ui, b, _, _, log = illus("e2e-ill-minor.cof", allow_intimate=True)
+    assert ui == ["hab1"] and real_batch(b, 1)                        # hab1 (not nude) is shown; contra1 (nude) never
+    assert log is None or "contra1 (nudity)" in log, log
+
+
+def test_illus_nudity_with_a_minor_shown_and_real_person_without_consent():
+    need("e2e-ill-who.cof")
+    for allow in (False, True):
+        ui, b, _, _, log = illus("e2e-ill-who.cof", allow_intimate=allow)
+        assert ui == [] and b == BLANK, (allow, ui)
+        if log is not None:
+            assert "hab1 (a real person without a consent record)" in log, log
+            assert ("contra1 (nudity with a person under 18 or of unknown age)" if allow else "contra1 (nudity)") in log, log
+
+
+def test_illus_real_person_needs_a_consent_record():
+    need("e2e-ill-real.cof")
+    for allow in (False, True):
+        ui, b, _, _, log = illus("e2e-ill-real.cof", allow_intimate=allow)
+        assert ui == ["contra1"] and real_batch(b, 1), (allow, ui)  # the guitar alone is not the person
+        assert log is None or "hab1 (a real person without a consent record)" in log, log
+    ui, b, _, _, _ = illus("e2e-ill-realok.cof")
+    assert ui == ["hab1", "contra1"] and real_batch(b, 2)
+
+
+def test_illus_nude_asset_of_an_appearance_variant():
+    need("e2e-ill-appnude.cof")
+    for allow in (False, True):
+        ui, b, _, _, log = illus("e2e-ill-appnude.cof", allow_intimate=allow)
+        assert ui == ["hab1"] and real_batch(b, 1), (allow, ui)
+
+
+def test_illus_image_of_an_explicit_memory_is_held_like_in_cof_memories():
+    need("e2e-ill-memexp.cof")
+    ui, b, _, _, log = illus("e2e-ill-memexp.cof")
+    assert ui == ["contra1"] and real_batch(b, 1)
+    assert log is None or "hab1 (nudity)" in log, log
+    # COF Memories holds back the same memory's images (memory_001 = ev1)
+    g = cof_chain("e2e-ill-memexp.cof", extra={"2": ("COFMemories", {"pick": "memory_001", "media": "all", "include_personal": False, "include_text_media": False})})
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 1]}}
+    o, st = run(g)
+    assert st["status_str"] == "success" and [image_info(e) for e in o["i"]["images"]] == BLANK
+    # and gives them on the reference file
+    g = cof_chain(REF, extra={"2": ("COFMemories", {"pick": "memory_001", "media": "all", "include_personal": False, "include_text_media": False})})
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 1]}}
+    o, st = run(g)
+    assert st["status_str"] == "success" and real_batch([image_info(e) for e in o["i"]["images"]], 3)
+
+
+@pytest.mark.parametrize("f", ["clara-martien.cof", "ex-01-clara-text-only.cof", "ex-03-clara-photos.cof", "ex-11-duo-clara-martien.cof"])
+def test_illus_on_files_without_psyche(f):
+    need(f)
+    for fmt in ("soul", "lines", "prose"):
+        ui, b, n, t, _ = illus(f, format=fmt)
+        assert ui == [] and b == BLANK and n == 0 and t == ""
+
+
+def test_memory_images_still_work_next_to_psyche_illustrations():
+    need(REF)
+    inputs = {"format": "lines", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False,
+              "include_personal": False, "show_illustrations": True, "output_illustrations": True}
+    g = cof_chain(preset="en-65", extra={"2": ("COFPsyche", inputs),
+                                         "3": ("COFMemories", {"pick": "all", "media": "all", "include_personal": False, "include_text_media": True})})
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 3]}}
+    g["m"] = {"class_type": "PreviewImage", "inputs": {"images": ["3", 1]}}
+    o, st = run(g)
+    assert st["status_str"] == "success", exec_error(st)
+    mem = [image_info(e) for e in o["m"]["images"]]
+    assert len(mem) >= 5 and all(s[0] > 64 for s in mem)
+    assert [node_of(image_info(e)) for e in o["2"]["images"]] == ["hab1"] and real_batch([image_info(e) for e in o["i"]["images"]], 1)
+
+
 # ---------------------------------------------------------------- all nodes x all files
-ALL_FILES = ["clara-martien.cof", "clara-mercier.cof", "ex-01-clara-text-only.cof", "ex-02-ecoliere.cof", "ex-03-clara-photos.cof", "ex-04-martien.cof",
+ALL_FILES =["clara-martien.cof", "clara-mercier.cof", "ex-01-clara-text-only.cof", "ex-02-ecoliere.cof", "ex-03-clara-photos.cof", "ex-04-martien.cof",
              "ex-06-homme-medieval.cof", "ex-07-clara-modulaire.cof", "ex-08-agent-skills.cof", "ex-10-clara-mercier.cof", "ex-11-duo-clara-martien.cof"]
 
 
