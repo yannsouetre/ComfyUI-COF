@@ -202,7 +202,7 @@ def _images(cof: COF, aids: list[str]) -> list[Image.Image]:
                 im = Image.open(io.BytesIO(data)); im.load()             # load now: a truncated body fails here, not in the tensor conversion
                 out.append(im)
             except Exception as ex:                                      # a damaged or unsupported image: skipped, said once
-                print(f"[COF] image {(cof.assets.get(aid) or {}).get('path', aid)}: {ex}")
+                print(f"[COF] {cof.path.name}: image {(cof.assets.get(aid) or {}).get('path', aid)}: {ex}")
     return out
 
 
@@ -252,6 +252,17 @@ class COFLoadCharacter:
     DESCRIPTION = "Loads a character from a COF (Character Open File): primary image, reference views and a ready prompt for the chosen preset."
 
     def load(self, cof_file, preset, character, max_size, allow_intimate=False):
+        try:
+            return self._load(cof_file, preset, character, max_size, allow_intimate)
+        except COFError as ex:                       # every message starts with the file's name, whatever raised it
+            name = Path(str(cof_file)).name
+            if name in str(ex):
+                raise
+            raise COFError(f"{name}: {ex}") from ex
+        except Exception as ex:                      # a damaged archive member, an unreadable image: a clear message, not a trace
+            raise COFError(f"{Path(str(cof_file)).name}: {type(ex).__name__}: {ex}") from ex
+
+    def _load(self, cof_file, preset, character, max_size, allow_intimate):
         cof = _open(cof_file)
         pid = cof.find_preset(_pick(preset), _pick(character))
         prim = cof.primary_image(pid, allow_adult=cof.nudity_allowed(pid, allow_intimate))
@@ -270,6 +281,7 @@ class _ImageNode:
     OUTPUT_TOOLTIPS = ("the chosen image, page or batch", "how many images match", "one line per matching image: its name and what it shows")
     FUNCTION = "pick_images"
     CATEGORY = "COF"
+    DESCRIPTION = "Images of the preset by type: pick one, a page of 24, or all of them as a batch. Adult content only when the loader allows it and the file permits it."
     @classmethod
     def _pick(cls):
         return (["mosaic_all"] + [f"image_{i:03d}" for i in range(1, 65)], {"default": "mosaic_all",
@@ -295,6 +307,7 @@ class COFAppearance(_ImageNode):
     """Appearance: face, body, reference set, character sheet, hair, clothing, accessories, facial and body hair,
     features, environments (and intimate variants, only when the loader allows them and the file permits it)."""
     CAT = "appearance"
+    DESCRIPTION = "The character's appearance images: face, body, reference set, character sheet, hair, clothing, accessories, places. Filter by type, subject and angle, then pick one image or a batch."
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -312,6 +325,7 @@ class COFAppearance(_ImageNode):
 class COFPostures(_ImageNode):
     """Postures: pose photos, OpenPose and silhouette images (for pose-guided generation)."""
     CAT = "posture"
+    DESCRIPTION = "The character's pose images (photos, OpenPose, silhouettes) for pose-guided generation: pick one or a batch."
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -337,6 +351,7 @@ class COFApplyLoRA:
     RETURN_NAMES = ("model", "clip", "trigger_words")
     FUNCTION = "apply"
     CATEGORY = "COF"
+    DESCRIPTION = "Applies the LoRA stored in the .cof to a model and a clip, and returns its trigger words. Strength -1 uses the weight the file recommends."
 
     def apply(self, model, clip, cof, strength):
         import comfy.sd
@@ -374,6 +389,7 @@ class COFReferenceLatents:
     RETURN_NAMES = ("paths", "base_models")
     FUNCTION = "export"
     CATEGORY = "COF"
+    DESCRIPTION = "Exports the pre-encoded references (RefMods) of the preset to a models folder and returns their paths and the base models they were made for."
 
     def export(self, cof, folder):
         c, pid = cof["cof"], cof["preset"]
@@ -429,6 +445,7 @@ class COFVoice:
     RETURN_NAMES = ("audio", "transcript", "labels")
     FUNCTION = "voice"
     CATEGORY = "COF"
+    DESCRIPTION = "One voice sample of the preset as AUDIO, with its transcript, for voice cloning, text-to-speech or lip-sync nodes. A preset without a voice gives one second of silence."
 
     def voice(self, cof, sample="sample_001"):
         c, pid = cof["cof"], cof["preset"]
@@ -465,6 +482,7 @@ class COFPersonality:
     RETURN_NAMES = ("persona", "language")
     FUNCTION = "text"
     CATEGORY = "COF"
+    DESCRIPTION = "The preset's personality as text for a language model: its description, archetype and opening line, with a short clause from the strongest value and stance when the file has a psyche."
 
     def text(self, cof):
         return cof["cof"].persona(cof["preset"])
@@ -478,6 +496,7 @@ class _FileNode:
     RETURN_NAMES = ("paths", "labels", "count")
     FUNCTION = "export"
     CATEGORY = "COF"
+    DESCRIPTION = "Exports the preset's files of this category to ComfyUI's input folder and returns their paths, for a node that loads a file from a path."
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -501,11 +520,13 @@ class _FileNode:
 class COF3D(_FileNode):
     """3D: the preset's 3D files (VRM, GLB, USDZ, splat, 3MF…), exported to input/3d."""
     CAT, SUB, WHAT = "volume3d", "3d", "3D file"
+    DESCRIPTION = "The preset's 3D files (VRM, GLB, USDZ, splat, 3MF…), exported to input/3d where Load 3D finds them; returns their paths."
 
 
 class COFMotion(_FileNode):
     """Motion: the preset's motion clips (BVH, VRMA) and short videos, exported to input/cof."""
     CAT, SUB, WHAT = "motion", "cof", "motion clip"
+    DESCRIPTION = "The preset's motion clips (BVH, VRMA) and short videos, exported to input/cof; returns their paths."
 
 
 class COFFiles:
@@ -528,6 +549,7 @@ class COFFiles:
                        "one line per file", "how many files match")
     FUNCTION = "export"
     CATEGORY = "COF"
+    DESCRIPTION = "The preset's agent skills, memories and documents: the text of the chosen files and where they were exported. Text files only, never scripts."
 
     def export(self, cof, kind="all", pick="all"):
         c, pid = cof["cof"], cof["preset"]
@@ -579,7 +601,7 @@ class COFMemories:
                        "the images of the chosen memories, or the one image chosen in `media` (a blank image when there is none)",
                        "the first sound of the chosen memories (silence when there is none) — for a voice or lip-sync node",
                        "the sound and video files of the chosen memories, extracted under input/cof/ — one path per line, for a node that loads a video or a sound from a path",
-                       "one line per memory: its name and when", "how many memories the preset lists")
+                       "one line per memory the preset lists: its name and when", "how many memories the text holds: all of them, or 1 when one is picked")
     FUNCTION = "recall"
     CATEGORY = "COF"
     DESCRIPTION = "The character's memories (COF 1.1): gists in timeline order for a prompt, and their images."
@@ -647,7 +669,7 @@ class COFMemories:
         if audio is None:
             import torch
             audio = {"waveform": torch.zeros((1, 1, 44100)), "sample_rate": 44100}
-        return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), audio, "\n".join(paths), labels, len(mems))
+        return ("\n".join(lines).strip(), _to_tensor(_images(c, aids), cof["max_size"]), audio, "\n".join(paths), labels, len(chosen))
 
 
 # ---- COF Psyche (COF 1.2, RFC 0004) ---------------------------------------------------------------------------------
@@ -824,6 +846,38 @@ def _psyche_language_choices(c: COF, pid: str, include_personal: bool = False) -
     return out + [f"{k}{SEP}{_plural(v, 'node')}" for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
+def _psyche_illustrations(c: COF, cof: dict, pid: str, shown: list[dict]) -> list[Image.Image]:
+    """The illustrations (first image of each node's media) of the nodes the text holds, under the rules of memory images:
+    nudity only with the loader's `allow_intimate` (already refused to a minor preset), a real person without a consent record never."""
+    pairs, held = c.psyche_illustrations(pid, shown, bool(cof.get("allow_intimate")))
+    if held:
+        print(f"[COF] psyche: {_plural(len(held), 'illustration')} held back — {', '.join(held)}")
+    images = []
+    for _, aid in pairs:                                              # a damaged illustration is skipped: it decorates a node, it is not the node
+        try:
+            images += _images(c, [aid])
+        except COFError as ex:
+            print(f"[COF] psyche: illustration skipped — {ex}")
+    if not images:
+        print("[COF] psyche: no illustration to show — the illustrations output is a blank 64×64 image")
+    return images
+
+
+def _save_previews(images: list[Image.Image], max_size: int) -> list[dict]:
+    """PNG files in ComfyUI's temp folder, as the `ui.images` entries a Preview Image node would give."""
+    import tempfile
+    import uuid
+    dest = folder_paths.get_temp_directory() if folder_paths else tempfile.gettempdir()
+    tag, out = uuid.uuid4().hex[:10], []
+    for i, im in enumerate(images):
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        im.thumbnail((min(max_size, 768),) * 2, Image.LANCZOS)
+        name = f"cof-psyche-{tag}-{i:02d}.png"
+        im.save(os.path.join(dest, name))
+        out.append({"filename": name, "subfolder": "", "type": "temp"})
+    return out
+
+
 class COFPsyche:
     """Psyche (COF 1.2, RFC 0004): the preset's psyche nodes — values, beliefs, wants, needs, fears, wound, stances, tastes,
     habits, contradictions, rules — as text for a language model or a prompt, in cof-cli's "Who she is" order."""
@@ -838,22 +892,27 @@ class COFPsyche:
                              "max_nodes": ("INT", {"default": 0, "min": 0, "max": 500, "tooltip": "the strongest N nodes (core first), 0 = all"}),
                              "include_secret": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked secret (what the character never tells) — off: left out, with one line saying so in the soul format"}),
                              "drop_dangerous": ("BOOLEAN", {"default": False, "tooltip": "off (default): the nodes whose declared risk is dangerous (would make the character harmful if it acted on them) are kept, marked « dangerous » in the text — a ComfyUI graph generates for the person who built it, it does not act, and fiction needs villains. Tick it to leave them out (and the contradictions that lose a side). inappropriate nodes are always kept, with a marker. cof-cli's agent export still drops dangerous nodes: an agent acts"}),
-                             "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked personal (a user's data, never shared by default)"})}}
+                             "include_personal": ("BOOLEAN", {"default": False, "tooltip": "also the nodes marked personal (a user's data, never shared by default)"}),
+                             "show_illustrations": ("BOOLEAN", {"default": False, "tooltip": "show, in this node, the illustration of each node it outputs (the first image of its media, RFC 0004 § 3 decies), like a Preview Image. Nudity only when the loader's allow_intimate permits it (as memory images); the image of a real person without a consent record is never shown"}),
+                             "output_illustrations": ("BOOLEAN", {"default": False, "tooltip": "also output those images as a batch on the last output (a blank 64×64 image when there are none, or when this is off). Same safeguards as show_illustrations"})}}
 
     @classmethod
     def VALIDATE_INPUTS(cls, language="(preset)"):
         return True                      # the language list is filled per file by web/cof.js (free text accepted)
 
-    RETURN_TYPES = ("STRING", "STRING", "INT")
-    RETURN_NAMES = ("text", "positions", "count")
+    RETURN_TYPES = ("STRING", "STRING", "INT", "IMAGE")
+    RETURN_NAMES = ("text", "positions", "count", "illustrations")
     OUTPUT_TOOLTIPS = ("the psyche in the chosen format (empty for a file without psyche)",
-                       "the stances only, one per line: toward X: …", "how many nodes the text holds")
+                       "the stances only, one per line: toward X: …", "how many nodes the text holds",
+                       "the illustrations of the nodes the text holds, one image each, when output_illustrations is on; otherwise, or when there is none, a blank 64×64 image (the console says why)")
     FUNCTION = "render"
     CATEGORY = "COF"
     DESCRIPTION = ("The character's psyche (COF 1.2): values, beliefs, wants, fears, stances… as text for a prompt, in cof-cli's SOUL.md order. "
-                   "Dangerous nodes are kept and marked « dangerous »: a graph generates for the person who built it, it does not act (tick drop_dangerous to leave them out; an agent export drops them).")
+                   "Dangerous nodes are kept and marked « dangerous »: a graph generates for the person who built it, it does not act (tick drop_dangerous to leave them out; an agent export drops them). "
+                   "Optionally shows, or outputs as images, the illustrations of its nodes (show_illustrations, output_illustrations).")
 
-    def render(self, cof, format="lines", language="(preset)", focus="", max_nodes=0, include_secret=False, drop_dangerous=False, include_personal=False):
+    def render(self, cof, format="lines", language="(preset)", focus="", max_nodes=0, include_secret=False, drop_dangerous=False, include_personal=False,
+               show_illustrations=False, output_illustrations=False):
         c, pid = cof["cof"], cof["preset"]
         if not hasattr(c, "psyche"):             # the loader came from an older copy of ComfyUI-COF left in custom_nodes
             c = COF(c.path)
@@ -862,7 +921,7 @@ class COFPsyche:
         lang = "" if lang in ("", "(preset)") else lang
         nodes = c.psyche(pid, lang, include_personal)
         if not nodes:
-            return ("", "", 0)
+            return self._result("", "", 0, [], show_illustrations)
         kept, stats = c.psyche_select(nodes, focus, drop_dangerous, max_nodes)
         out_lang = lang or (c._wanted(pid) or ["en"])[0]
         if stats["dangerous"]:
@@ -877,7 +936,18 @@ class COFPsyche:
             text = psyche_prose(kept, out_lang, include_secret)
         else:
             text = psyche_lines(kept, out_lang, include_secret)
-        return (text, psyche_positions(kept, out_lang, include_secret), len(shown))
+        images = []
+        if show_illustrations or output_illustrations:                  # decoded only when asked: a text-only graph never touches the images
+            images = _psyche_illustrations(c, cof, pid, shown)
+        return self._result(text, psyche_positions(kept, out_lang, include_secret), len(shown), images, show_illustrations, output_illustrations, cof.get("max_size", 1024))
+
+    @staticmethod
+    def _result(text, positions, count, images, show, output=False, max_size=1024):
+        """The outputs; with show_illustrations also the UI preview (temp files, ComfyUI's standard `ui.images`)."""
+        batch = _to_tensor(images if output else [], max_size)
+        if not show:
+            return (text, positions, count, batch)
+        return {"ui": {"images": _save_previews(images, max_size)}, "result": (text, positions, count, batch)}
 
 
 NODE_CLASS_MAPPINGS = {"COFLoadCharacter": COFLoadCharacter, "COFPersonality": COFPersonality, "COFAppearance": COFAppearance,

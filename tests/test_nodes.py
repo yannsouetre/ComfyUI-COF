@@ -219,6 +219,7 @@ def test_memories_node(pack):
     assert imgs.shape[0] >= 9                                           # three + two + two + three images, no poster
     text1, imgs1 = nodes.COFMemories().recall(d, "memory_002")[:2]
     assert "agence" in text1 and imgs1.shape[0] == 1 and imgs1.shape[1] == 64   # the period has no image: a blank one
+    assert nodes.COFMemories().recall(d, "memory_002")[5] == 1 and nodes.COFMemories().recall(d, "memory_002")[4].count("\n") == 4   # count = the memories output; labels still list the preset's five
     d_en = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "en-agent", "", 256)[0]
     assert "Eat first" in nodes.COFMemories().recall(d_en)[0]
     # a 1.0 file: no memory, no crash
@@ -237,7 +238,7 @@ def test_psyche_node(pack):
     nodes, _ = pack
     d = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "", "", 256)[0]
     assert d["preset"] == "default"
-    soul, pos, n = nodes.COFPsyche().render(d, "soul")
+    soul, pos, n, *_ = nodes.COFPsyche().render(d, "soul")
     assert n == 22 and soul.startswith("## Who she is\n")
     assert [l[4:] for l in soul.splitlines() if l.startswith("### ")] == SOUL_ORDER
     assert "- Lightness: do less, better — a page should cost" in soul            # strength 95: the whole gist
@@ -246,7 +247,7 @@ def test_psyche_node(pack):
     assert "### Tastes\n- Likes:\n  - Loves the smell of paper and a lime tree's shade in August\n- Dislikes:\n  - Hates notifications" in soul
     assert pos.splitlines() == ["toward the Martian: protective curiosity — the one visitor who looked at the sheep before the screens.  ·  warmth +60",
                                 "toward design agencies: no rancour, no return.  ·  warmth -10"]
-    lines, pos2, n2 = nodes.COFPsyche().render(d, "lines")
+    lines, pos2, n2, *_ = nodes.COFPsyche().render(d, "lines")
     rows = lines.splitlines()
     assert n2 == 22 and len(rows) == 22 and rows[0].startswith("wound · Four years") and rows[-1].startswith("contradiction · ") and pos2 == pos
     assert "need · Accept being helped — a studio is not one person at night.  ·  half aware" in rows      # lines: always the whole gist, the markers
@@ -256,23 +257,23 @@ def test_psyche_node(pack):
     assert prose.startswith("Values: Lightness: do less, better; Accessibility") and prose.index("Toward the Martian: protective curiosity (warmth +60); toward design agencies: no rancour, no return (warmth -10).") < prose.index("Wound:")
     assert "\n" not in prose and "sheep before the screens" not in prose              # one paragraph, short clauses
     # focus: "what she thinks of the Martian" = the stance hanging on that memory, plus every core node
-    t, p, nf = nodes.COFPsyche().render(d, "lines", focus="the Martian")
+    t, p, nf, *_ = nodes.COFPsyche().render(d, "lines", focus="the Martian")
     assert nf == 6 and {r.split(" · ")[0] for r in t.splitlines()} == {"wound", "value", "belief", "stance", "habit"}
     assert "about: the Martian" in t and "agencies" not in t and "Four years of shipping" in t and p == pos.splitlines()[0]
     assert nodes.COFPsyche().render(d, "lines", focus="martien")[2] == 6             # accents and case do not matter
     assert nodes.COFPsyche().render(d, "lines", focus="grandmother")[2] == 7           # val4 and taste1 hang on ev1
     # max_nodes: the strongest, core first
-    t5, _, n5 = nodes.COFPsyche().render(d, "lines", max_nodes=5)
+    t5, _, n5, *_ = nodes.COFPsyche().render(d, "lines", max_nodes=5)
     assert n5 == 5 and t5.count("\n") == 4 and "Four years" in t5 and "Lightness" in t5 and "structure her ideas" in t5
     # languages: the preset's, or the one asked
     dfr = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "fr", "", 256)[0]
-    sfr, pfr, _ = nodes.COFPsyche().render(dfr, "soul")
+    sfr, pfr, _, *_ = nodes.COFPsyche().render(dfr, "soul")
     assert sfr.startswith("## Qui elle est\n") and "### Valeurs\n- La légèreté : faire moins, mieux" in sfr and pfr.startswith("envers le Martien: une curiosité protectrice")
     assert "La légèreté" in nodes.COFPsyche().render(d, "soul", language="fr")[0] and "Lightness" in nodes.COFPsyche().render(dfr, "lines", language="en — 22 nodes")[0]
     assert nodes._psyche_language_choices(d["cof"], "default") == ["(preset) — en", "en — 22 nodes", "fr — 22 nodes"]
     # the 12-year-old holds three nodes and no stance
     d12 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-psyche.cof"), "en-12", "", 256)[0]
-    t12, p12, n12 = nodes.COFPsyche().render(d12, "soul")
+    t12, p12, n12, *_ = nodes.COFPsyche().render(d12, "soul")
     assert n12 == 3 and p12 == "" and "Empathy before cleverness" in t12 and "agency" not in t12.lower()
     # the persona text gains the strongest value and stance, one short clause each
     persona = nodes.COFPersonality().text(d)[0]
@@ -283,7 +284,7 @@ def test_psyche_node(pack):
     assert nodes.COFPersonality().text(d12)[0].endswith("Core value: Empathy before cleverness")
     # a 1.1 file: no psyche, empty outputs, no persona clause
     d11 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "fr-agent", "", 256)[0]
-    assert nodes.COFPsyche().render(d11, "soul") == ("", "", 0) and nodes.COFPsyche().render(d11, "prose", focus="Martien") == ("", "", 0)
+    assert nodes.COFPsyche().render(d11, "soul")[:3] == ("", "", 0) and nodes.COFPsyche().render(d11, "prose", focus="Martien")[:3] == ("", "", 0)
     assert "Core value" not in nodes.COFPersonality().text(d11)[0]
     assert "COFPsyche" in nodes.NODE_CLASS_MAPPINGS and nodes.NODE_DISPLAY_NAME_MAPPINGS["COFPsyche"].endswith(" COF Psyche")
 
@@ -337,9 +338,9 @@ def test_psyche_risk_secret_personal(pack):
     c.json_at = lambda rel: synth[rel] if rel in synth else orig(rel)
     cof = {"cof": c, "preset": "default", "allow_intimate": False, "max_size": 256}
     # decision D3 (3 November): kept by default, marked — a graph generates for the person who built it, it does not act
-    t2, _, n2 = nodes.COFPsyche().render(cof, "lines")
+    t2, _, n2, *_ = nodes.COFPsyche().render(cof, "lines")
     assert n2 == 24 and "belief · Other people are tools to be used.  ·  dangerous" in t2 and "contradiction · Uses people, preaches empathy." in t2
-    t, _, n = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
+    t, _, n, *_ = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
     assert n == 22 and "tools" not in t and "Uses people" not in t                    # the contradiction lost a side: gone too
     assert nodes.COFPsyche.INPUT_TYPES()["optional"]["drop_dangerous"][1]["default"] is False
     assert nodes.COFPsyche().render(cof, "lines", max_nodes=1)[0].startswith("belief · Other people")   # core, strength 99
@@ -347,11 +348,11 @@ def test_psyche_risk_secret_personal(pack):
     assert "content: psyche-dangerous (a psyche node that would make the character harmful" in c.summary("default")
     # a secret contradiction: left out, said once in the soul format, never in lines or prose; shown and marked on request
     synth["elements/psyche/contra1/psyche-node.json"] = dict(orig("elements/psyche/contra1/psyche-node.json"), disclosure="secret")
-    s, _, ns = nodes.COFPsyche().render(cof, "soul", drop_dangerous=True)
+    s, _, ns, *_ = nodes.COFPsyche().render(cof, "soul", drop_dangerous=True)
     assert ns == 21 and "Preaches slowness" not in s and s.rstrip().endswith("There are things she does not tell.")
-    l, _, nl = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
+    l, _, nl, *_ = nodes.COFPsyche().render(cof, "lines", drop_dangerous=True)
     assert nl == 21 and "Preaches slowness" not in l and "does not tell" not in l and "Preaches slowness" not in nodes.COFPsyche().render(cof, "prose")[0]
-    s2, _, ns2 = nodes.COFPsyche().render(cof, "soul", include_secret=True, drop_dangerous=True)
+    s2, _, ns2, *_ = nodes.COFPsyche().render(cof, "soul", include_secret=True, drop_dangerous=True)
     assert ns2 == 22 and "- Preaches slowness, works at night  ·  secret" in s2 and "does not tell" not in s2
     # an inappropriate node is kept, with a marker; a personal one is a user's data
     synth["elements/psyche/taste2/psyche-node.json"] = dict(orig("elements/psyche/taste2/psyche-node.json"), risk="inappropriate", visibility="personal")
@@ -400,3 +401,133 @@ def test_loader_is_changed_follows_the_file(pack, tmp_path):
     shutil.copy(SAMPLES / "clara-martien.cof", f)
     assert nodes.COFLoadCharacter.IS_CHANGED(str(f), preset="", character="", max_size=64) != a
     assert nodes.COFLoadCharacter.IS_CHANGED(str(tmp_path / "missing.cof")) == ""
+
+
+def test_every_node_has_a_description(pack):
+    nodes, _ = pack
+    for name, cls in nodes.NODE_CLASS_MAPPINGS.items():
+        assert len(str(getattr(cls, "DESCRIPTION", "")).strip()) > 20, name
+
+
+def test_load_errors_start_with_the_file_name(pack, tmp_path):
+    nodes, _ = pack
+    src = SAMPLES / "clara-mercier.cof"
+    f = tmp_path / "damaged.cof"
+    z = zipfile.ZipFile(src)
+    target = next(a["path"] for a in json.loads(z.read("manifest.json"))["assets"] if a.get("role") in ("view", "reference") and a["path"].lower().endswith((".jpg", ".png")))
+    raw = bytearray(src.read_bytes())
+    zi = z.getinfo(target)
+    start = zi.header_offset + 30 + len(zi.filename.encode()) + 4 + zi.compress_size // 2
+    for k in range(start, start + 20):
+        raw[k] ^= 0xFF
+    f.write_bytes(bytes(raw))
+    with pytest.raises(nodes.COFError) as e:                       # a damaged member (bad CRC): the file first, not a bare zipfile message
+        nodes.COFLoadCharacter().load(str(f), "", "", 128)
+    assert str(e.value).startswith("damaged.cof: ") and "CRC" in str(e.value)
+    with pytest.raises(nodes.COFError) as e:
+        nodes.COFLoadCharacter().load(str(src), "no-such-preset", "", 128)
+    assert str(e.value).startswith("clara-mercier.cof: unknown preset")
+    (tmp_path / "junk.cof").write_bytes(b"not a zip")
+    with pytest.raises(nodes.COFError) as e:
+        nodes.COFLoadCharacter().load(str(tmp_path / "junk.cof"), "", "", 128)
+    assert str(e.value).startswith("junk.cof: not a ZIP")
+
+
+# ---- COF Psyche illustrations (RFC 0004 § 3 decies): show_illustrations / output_illustrations ------------------------
+
+def _illustrated(pack, edit=None, nodes_json=None, allow=False, sexual=False):
+    """The 1.2 sample whose nodes contra1 (the folk guitar) and hab1 (the notebook) are illustrated, as a loader dict; `edit(manifest)`
+    changes its manifest, `nodes_json` replaces node files, `sexual` grants allowSexualUsage, `allow` asks for adult content."""
+    nodes, _ = pack
+    from comfyui_cof.cof_reader import COF
+    c = COF(SAMPLES / "clara-illustrated.cof")
+    if edit:
+        edit(c.m)
+    if nodes_json:
+        orig = c.json_at
+        c.json_at = lambda rel: nodes_json[rel](orig(rel)) if rel in nodes_json else orig(rel)
+    if sexual:
+        c.permissions = lambda pid: {"allowSexualUsage": True}
+    return {"cof": c, "preset": "default", "allow_intimate": c.intimate_allowed("default", allow), "max_size": 256}
+
+
+def _psyche_variant(m, vid):
+    return m["elements"]["psyche"]["variants"][vid]
+
+
+def test_psyche_illustrations_off_by_default(pack):
+    nodes, _ = pack
+    d = _illustrated(pack)
+    out = nodes.COFPsyche().render(d, "lines")
+    assert isinstance(out, tuple) and len(out) == 4 and out[2] == 22 and out[3].shape[:3] == (1, 64, 64)   # blank, and nothing decoded
+    opt = nodes.COFPsyche.INPUT_TYPES()["optional"]
+    assert list(opt)[-2:] == ["show_illustrations", "output_illustrations"] and not opt["show_illustrations"][1]["default"] and not opt["output_illustrations"][1]["default"]
+    assert nodes.COFPsyche.RETURN_NAMES == ("text", "positions", "count", "illustrations") and nodes.COFPsyche.RETURN_TYPES[:3] == ("STRING", "STRING", "INT")
+
+
+def test_psyche_illustrations_output_and_preview(pack):
+    nodes, _ = pack
+    d = _illustrated(pack)
+    t, _, n, imgs = nodes.COFPsyche().render(d, "lines", output_illustrations=True)
+    assert n == 22 and imgs.shape[0] == 2 and imgs.shape[-1] == 3 and imgs.shape[1] > 64        # contra1 and hab1, one image each, in the nodes' order
+    # a preview in the node itself: ui.images with temp files, and the same four outputs
+    res = nodes.COFPsyche().render(d, "lines", show_illustrations=True)
+    assert set(res) == {"ui", "result"} and len(res["ui"]["images"]) == 2 and res["result"][2] == 22
+    assert res["result"][3].shape[:3] == (1, 64, 64)                                              # shown, not output
+    import tempfile
+    for im in res["ui"]["images"]:
+        assert im["type"] == "temp" and im["subfolder"] == "" and (Path(tempfile.gettempdir()) / im["filename"]).is_file()
+        (Path(tempfile.gettempdir()) / im["filename"]).unlink()
+    both = nodes.COFPsyche().render(d, "lines", show_illustrations=True, output_illustrations=True)
+    assert both["result"][3].shape[0] == 2
+    for im in both["ui"]["images"]:
+        (Path(tempfile.gettempdir()) / im["filename"]).unlink()
+    # the images are those of the nodes the text holds: a focus, max_nodes, a secret node
+    assert nodes.COFPsyche().render(d, "lines", focus="guitar", output_illustrations=True)[3].shape[0] == 1   # hab1 is not core
+    assert nodes.COFPsyche().render(d, "lines", max_nodes=1, output_illustrations=True)[3].shape[:3] == (1, 64, 64)   # the strongest node has none
+    secret = _illustrated(pack, nodes_json={"elements/psyche/hab1/psyche-node.json": lambda n: dict(n, disclosure="secret")})
+    assert nodes.COFPsyche().render(secret, "lines", output_illustrations=True)[3].shape[0] == 1
+    assert nodes.COFPsyche().render(secret, "lines", include_secret=True, output_illustrations=True)[3].shape[0] == 2
+    # a file without illustrations or without psyche: the blank image, no error
+    d0 = nodes.COFLoadCharacter().load(str(SAMPLES / "clara-memories.cof"), "", "", 256)[0]
+    assert nodes.COFPsyche().render(d0, "soul", output_illustrations=True)[3].shape[:3] == (1, 64, 64)
+    assert nodes.COFPsyche().render(d0, "soul", show_illustrations=True)["ui"]["images"] == []
+
+
+def test_psyche_illustrations_follow_the_safeguards_of_memory_images(pack):
+    nodes, _ = pack
+    n_of = lambda d, **kw: nodes.COFPsyche().render(d, "lines", output_illustrations=True, **kw)[3].shape[0]
+    age = lambda m, v, a: _psyche_variant(m, v).update(age={"value": a, "unit": "years"})
+    nude = lambda m, v: _psyche_variant(m, v).update(nudity=True)
+    shown_self = {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"identity": "self", "shown": True}])}
+    # nudity-flagged: never without the opt-in, nor by asking when the preset does not allow it (allowSexualUsage off)
+    assert n_of(_illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 29)), shown_self)) == 1
+    assert n_of(_illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 29)), shown_self, allow=True)) == 1      # allowSexualUsage is off
+    # an adult preset that allows it, asked for: shown
+    ok = _illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 29)), shown_self, allow=True, sexual=True)
+    assert ok["allow_intimate"] and n_of(ok) == 2
+    # nudity with nobody declared shown (no age, nobody shown): held, even with the opt-in
+    assert n_of(_illustrated(pack, lambda m: nude(m, "contra1"), allow=True, sexual=True)) == 1
+    # the character shown at 15: the preset becomes a minor preset (its safety age reads the illustration), nothing nude whatever is asked
+    minor = _illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 15)), shown_self, allow=True, sexual=True)
+    assert minor["cof"].safety_age("default") == 15 and not minor["allow_intimate"] and n_of(minor) == 1
+    # an ordinary (clothed) illustration of the character at 15 is a memory-style image: shown, as memory images are
+    assert n_of(_illustrated(pack, lambda m: age(m, "contra1", 15), shown_self)) == 2
+    # another person shown nude under 18 or of unknown age: held
+    kid = {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"identity": "self", "shown": True}, {"label": {"en": "a friend"}, "shown": True}])}
+    assert n_of(_illustrated(pack, lambda m: (nude(m, "contra1"), age(m, "contra1", 29)), kid, allow=True, sexual=True)) == 1
+    # an image an appearance variant of the file marks as nudity is nude wherever a node reuses it
+    reused = _illustrated(pack, lambda m: (m["elements"]["appearance"]["variants"]["x1"].update(nudity=True), age(m, "contra1", 29)), shown_self)
+    assert n_of(reused) == 1
+    # a real person without a consent record: never, even with the opt-ins; with a consent record the ordinary image is shown
+    def real(m, consent=None):
+        I = m["identities"]["id1"]; I["fictional"] = False
+        if consent:
+            I["consent"] = consent
+        age(m, "contra1", 29)
+    assert n_of(_illustrated(pack, real, shown_self, allow=True, sexual=True)) == 1
+    assert n_of(_illustrated(pack, lambda m: real(m, {"scope": ["conversational-persona"]}), shown_self)) == 2
+    assert n_of(_illustrated(pack, lambda m: real(m, {"scope": ["conversational-persona"]}), {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"identity": "self", "shown": True}]),}, allow=True, sexual=True)) == 2   # nothing nude here
+    # an unmodelled real person shown (who[].real): no consent record can exist, never shown
+    other = {"elements/psyche/contra1/psyche-node.json": lambda n: dict(n, who=[{"label": {"en": "a passer-by"}, "shown": True, "real": True}])}
+    assert n_of(_illustrated(pack, None, other)) == 1

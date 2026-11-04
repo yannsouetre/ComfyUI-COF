@@ -101,7 +101,8 @@ def text_outputs(prompt, node, outs, timeout=120):
 
 
 def psyche(file=REF, preset="(default)", **kw):
-    inputs = {"format": "soul", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False, "include_personal": False}
+    inputs = {"format": "soul", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False, "include_personal": False,
+              "show_illustrations": False, "output_illustrations": False}
     inputs.update(kw)
     g = cof_chain(file, preset, extra={"2": ("COFPsyche", inputs)})
     t = text_outputs(g, "2", [0, 1, 2])
@@ -216,7 +217,7 @@ EXPECTED = {   # class: (outputs, required inputs, optional inputs)
     "COFMotion": (["paths", "labels", "count"], ["cof", "pick"], []),
     "COFFiles": (["text", "paths", "labels", "count"], ["cof", "kind", "pick"], []),
     "COFMemories": (["text", "images", "audio", "media_paths", "labels", "count"], ["cof", "pick"], ["media", "include_personal", "include_text_media"]),
-    "COFPsyche": (["text", "positions", "count"], ["cof", "format"], ["language", "focus", "max_nodes", "include_secret", "drop_dangerous", "include_personal"]),
+    "COFPsyche": (["text", "positions", "count", "illustrations"], ["cof", "format"], ["language", "focus", "max_nodes", "include_secret", "drop_dangerous", "include_personal", "show_illustrations", "output_illustrations"]),
 }
 
 
@@ -438,7 +439,7 @@ def test_memories_node_on_clara():
     # one memory, one image
     g2 = cof_chain(extra={"2": ("COFMemories", {"pick": "memory_001", "media": "all", "include_personal": False, "include_text_media": False})})
     t2 = text_outputs(g2, "2", [0, 5])
-    assert t2[0].count("### ") == 1 and "grandmother" in t2[0]          # (count, by design, stays the number of memories the preset lists)
+    assert t2[0].count("### ") == 1 and "grandmother" in t2[0] and t2[1] == "1"          # count = the memories the text holds (0.7.0); labels still list the preset's
 
 
 def test_memories_and_media_on_every_file_without_error():
@@ -454,7 +455,7 @@ def test_memories_and_media_on_every_file_without_error():
 
 
 def test_illustrated_psyche_nodes_do_not_break_anything():
-    """contra1 and hab1 carry `media` (psyche-media): every node still runs on the file, and the media are not output (yet)."""
+    """contra1 and hab1 carry `media` (psyche-media): every node still runs on the file (COF Psyche outputs them only on request, see below)."""
     need(REF)
     for fmt in ("soul", "lines", "prose"):
         t, _, n = psyche(format=fmt, focus="guitar")
@@ -463,6 +464,26 @@ def test_illustrated_psyche_nodes_do_not_break_anything():
     g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 0]}}
     o, st = run(g)
     assert st["status_str"] == "success"
+
+
+def test_psyche_illustrations_in_a_real_comfyui():
+    """show_illustrations: a preview in the node itself (ui.images, temp files); output_illustrations: the batch on the 4th output."""
+    need(REF)
+    inputs = {"format": "lines", "language": "(preset)", "focus": "", "max_nodes": 0, "include_secret": False, "drop_dangerous": False, "include_personal": False,
+              "show_illustrations": True, "output_illustrations": True}
+    g = cof_chain(extra={"2": ("COFPsyche", inputs)})
+    g["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 3]}}
+    g["t"] = {"class_type": "PreviewAny", "inputs": {"source": ["2", 0]}}
+    o, st = run(g)
+    assert st["status_str"] == "success", exec_error(st)
+    assert len(o["2"]["images"]) == 2 and all(e["type"] == "temp" for e in o["2"]["images"])      # contra1 and hab1, shown in the node
+    assert len(o["i"]["images"]) == 2                                                               # and output as a batch
+    assert all(image_info(e)[0] > 64 for e in o["2"]["images"])
+    # off by default: no preview in the node, a blank 64x64 image on the output
+    g2 = cof_chain(extra={"2": ("COFPsyche", dict(inputs, show_illustrations=False, output_illustrations=False))})
+    g2["i"] = {"class_type": "PreviewImage", "inputs": {"images": ["2", 3]}}
+    o2, st2 = run(g2)
+    assert st2["status_str"] == "success" and not o2.get("2", {}).get("images") and image_info(o2["i"]["images"][0]) == (64, 64)
 
 
 # ---------------------------------------------------------------- all nodes x all files
@@ -547,6 +568,7 @@ def test_error_corrupted_cof(f):
         assert err, "a corrupted .cof must give an execution error"
         msg = err["exception_message"]
     assert msg.strip() and "Traceback" not in msg
+    assert f in msg, msg                                             # every message starts with, or at least names, the file
     assert any(w in msg.lower() for w in ("cof", "zip", "manifest", "json", "crc")), msg
     _alive_after()
 

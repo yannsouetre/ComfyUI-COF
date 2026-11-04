@@ -93,9 +93,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     // include_personal toggle refreshes the language list too
     return out;
   });
-  check('COF Psyche node has its widgets', JSON.stringify(ps.widgets) === JSON.stringify(['format', 'language', 'focus', 'max_nodes', 'include_secret', 'drop_dangerous', 'include_personal']), ps.widgets.join(','));
+  check('COF Psyche node has its widgets', JSON.stringify(ps.widgets) === JSON.stringify(['format', 'language', 'focus', 'max_nodes', 'include_secret', 'drop_dangerous', 'include_personal', 'show_illustrations', 'output_illustrations']), ps.widgets.join(','));
   check('COF Psyche language list is filled from the file (preset fr-12)', ps.lang.length >= 2 && /^\(preset\)/.test(ps.lang[0]), JSON.stringify(ps.lang));
-  check('COF Psyche outputs text / positions / count', ps.outputs.join(',') === 'text,positions,count');
+  check('COF Psyche outputs text / positions / count / illustrations', ps.outputs.join(',') === 'text,positions,count,illustrations');
 
   // other pickers: Memories, Appearance
   const pick = await page.evaluate(async () => {

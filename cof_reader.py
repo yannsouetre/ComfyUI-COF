@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 import zipfile
+import zlib
 from pathlib import Path
 
 MIMETYPE = "application/vnd.cof.character+zip"
@@ -164,6 +165,8 @@ class COF:
             return self.zip.read(rel)
         except KeyError as ex:
             raise COFError(f"{self.path.name}: {rel} is listed in the manifest but missing from the archive") from ex
+        except (zipfile.BadZipFile, zlib.error, NotImplementedError, RuntimeError, OSError, EOFError) as ex:   # a damaged member (bad CRC…): name the file
+            raise COFError(f"{self.path.name}: {rel}: {ex}") from ex
 
     def json_at(self, rel: str):
         try:
@@ -323,7 +326,8 @@ class COF:
         shown (the prompt, the summary): a 65-year-old preset remembering her wedding at 31 is still shown at 65."""
         ages = [self.preset_age(pid)]
         for lists in (self.slots(pid), self.offered(pid)):
-            ages += [age_years(v.get("age")) for v in self.resolved(lists).get("memories", [])]
+            for cat in ("memories", "psyche"):         # a psyche node whose illustration shows the character carries its age too (RFC 0004 § 3 decies)
+                ages += [age_years(v.get("age")) for v in self.resolved(lists).get(cat, [])]
         ages = [a for a in ages if a is not None]
         return min(ages) if ages else None
 
@@ -864,8 +868,52 @@ class COF:
                         "valence": n["valence"] if kind in ("stance", "taste") and isinstance(n.get("valence"), int) and not isinstance(n.get("valence"), bool) else None,
                         "until": n.get("until") if isinstance(n.get("until"), dict) else None,
                         "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
-                        "keywords": [w for w in words if w], **self.axes(n, lang)})
+                        "keywords": [w for w in words if w], "media": [str(a) for a in rv.get("media") or [] if isinstance(a, str)],
+                        "age": age_years(rv.get("age")), **self.axes(n, lang)})
         return out
+
+    def psyche_illustrations(self, pid: str, nodes: list[dict], allow_intimate: bool) -> tuple[list[tuple[dict, str]], list[str]]:
+        """The illustration of each node (RFC 0004 § 3 decies): the FIRST image of its `media`, as [(node, asset id)] in the
+        nodes' order, and why some were held back. Images of the file like any other, so the rules of memory images hold:
+        an image marked `nudity` (the variant's flag, or an asset an appearance / intimate variant of the file marks) only
+        when `allow_intimate` is true — the value the loader gives, which already needs a preset of 18 or over (its safety age
+        reads the ages the illustrations carry), the preset's `allowSexualUsage` and, for a real person, the `intimate`
+        consent — and then only if every person shown is of a known age of 18 or more (and, for a real one, consents to
+        nudity); the image of a real person (the character, an identity of the cast, or a `who[].real` person) without a
+        consent record is never given, whatever the options."""
+        nude_assets = self.nude_assets() | {a for vid in self.variants("memories") if self.memory_explicit(vid) for a in self.memory_media(vid)}
+        out, held = [], []
+        owner = self.identity(self.owner(pid))
+        for n in nodes:
+            aid = next((a for a in n.get("media") or [] if str((self.assets.get(a) or {}).get("mediaType", "")).startswith("image/")), None)
+            if not aid:
+                continue
+            who = [w for w in n["node"].get("who") or [] if isinstance(w, dict) and w.get("shown")]
+            self_shown = n.get("age") is not None or any(w.get("identity") == "self" for w in who)
+            nude = (self.variant("psyche", n["id"]) or {}).get("nudity") is True or aid in nude_assets
+            why = ""
+            if self_shown and owner.get("fictional") is False and not owner.get("consent"):
+                why = "a real person without a consent record"
+            people = [(w, self.identity(w["identity"]) if w.get("identity") not in (None, "self") and w.get("identity") in self.identities() else None) for w in who if w.get("identity") != "self"]
+            for w, I in people:
+                if not why and ((I is None and w.get("real") is True) or (I is not None and I.get("fictional") is False and not I.get("consent"))):
+                    why = "a real person without a consent record"
+            if nude and not why:
+                if not allow_intimate:
+                    why = "nudity"
+                else:
+                    ages = ([n["age"]] if self_shown else []) + [age_years(w.get("age")) for w, _ in people]
+                    if not self_shown and not people:
+                        why = "nudity with nobody declared shown"
+                    elif any(a is None or a < ADULT for a in ages):
+                        why = "nudity with a person under 18 or of unknown age"
+                    elif any(I is not None and I.get("fictional") is False and not {"nudity", "intimate"} & set((I.get("consent") or {}).get("scope") or []) for _, I in people):
+                        why = "nudity of a real person without the matching consent"
+            if why:
+                held.append(f"{n['id']} ({why})")
+            else:
+                out.append((n, aid))
+        return out, held
 
     @staticmethod
     def psyche_select(nodes: list[dict], focus: str = "", drop_dangerous: bool = True, max_nodes: int = 0) -> tuple[list[dict], dict]:
