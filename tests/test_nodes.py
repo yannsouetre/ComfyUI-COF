@@ -388,3 +388,15 @@ def test_people_places_objects(pack):
     assert "guitar" in tg.lower() and "Lightness" in tg and "slow down" in tg.lower()          # and brings its two sides (val1, bel3)
     assert "Keeps a small recycled-paper notebook" in nodes.COFPsyche().render(dd, "lines", focus="carnet")[0]   # hab1: its own object, any language
     assert "Co-found a fully ethical" in nodes.COFPsyche().render(dd, "lines", focus="studio")[0]                # want2: its place (an environment)
+
+
+def test_loader_is_changed_follows_the_file(pack, tmp_path):
+    """ComfyUI caches a node's output while its inputs and IS_CHANGED stay the same: a .cof rewritten under the same name must change it."""
+    nodes, _ = pack
+    f = tmp_path / "x.cof"
+    shutil.copy(SAMPLES / "mixed-adult-minor.cof", f)
+    a = nodes.COFLoadCharacter.IS_CHANGED(str(f), preset="", character="", max_size=64)
+    assert a == nodes.COFLoadCharacter.IS_CHANGED(str(f), preset="", character="", max_size=64)       # untouched: same value, cached
+    shutil.copy(SAMPLES / "clara-martien.cof", f)
+    assert nodes.COFLoadCharacter.IS_CHANGED(str(f), preset="", character="", max_size=64) != a
+    assert nodes.COFLoadCharacter.IS_CHANGED(str(tmp_path / "missing.cof")) == ""
