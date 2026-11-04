@@ -106,6 +106,14 @@ function hook(node, names, fn) {
   }
 }
 
+// COF Psyche: drop the illustration preview an earlier run left on the node
+function clearPreview(node) {
+  if (!node.imgs?.length) return;
+  node.imgs = undefined;
+  node.imageIndex = null;
+  node.setDirtyCanvas?.(true, true);
+}
+
 // the Read me note of the COF workflows (property cof_readme): text twice the size set in ComfyUI's settings
 function bigNote(node, tries = 10) {
   if (!node?.properties?.cof_readme) return;
@@ -154,6 +162,23 @@ app.registerExtension({
       setTimeout(() => refresh(this), 120);
       return r;
     };
+    if (nodeData.name === "COFPsyche") {
+      // illustrations: ComfyUI's frontend keeps node.imgs when a run sends no image, so the node would go on showing an illustration
+      // its output no longer has. Cleared when a run sends an empty `ui.images` (no illustrated node in the selection) and when
+      // show_illustrations is unticked (the node then sends no preview at all).
+      const executed = nodeType.prototype.onExecuted;
+      nodeType.prototype.onExecuted = function (message) {
+        const r = executed?.apply(this, arguments);
+        if (!message?.images?.length) clearPreview(this);
+        return r;
+      };
+      const made = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = function () {
+        const r = made?.apply(this, arguments);
+        hook(this, ["show_illustrations"], n => { if (!W(n, "show_illustrations")?.value) clearPreview(n); });
+        return r;
+      };
+    }
     if (spec) {
       const changed = nodeType.prototype.onConnectionsChange;
       nodeType.prototype.onConnectionsChange = function () {
