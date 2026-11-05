@@ -754,6 +754,8 @@ def psyche_soul(nodes: list[dict], lang: str, pron_gender: str | None, include_s
     one line saying so — plus the `inappropriate` / `dangerous` markers cof-cli does not write."""
     W = _psyche_words(lang)
     pron = W["pron"].get(pron_gender or "", W["pron_default"])
+    if pron == "they":                                  # singular they takes the plural verb (cof-cli parity)
+        W = {**W, "title": "Who they are", "secret": "There are things they do not tell.", "intro": W["intro"].replace("{pron} holds", "{pron} hold")}
     lines = [f"## {W['title'].format(pron=pron)}", "", W["intro"].format(full=FULL_LINE_STRENGTH, pron=pron), ""]
     secret = 0
     for kind, group in _by_kind(nodes):

@@ -14,6 +14,7 @@ No file is executed; only JSON, images, audio and .safetensors are read or extra
 from __future__ import annotations
 
 import json
+import math
 import re
 import zipfile
 import zlib
@@ -40,9 +41,15 @@ class COFError(ValueError):
     pass
 
 
+def _no_constant(name: str):
+    raise ValueError(f"{name} is not valid JSON")
+
+
 def age_years(a) -> float | None:
     if not isinstance(a, dict) or not isinstance(a.get("value"), (int, float)) or isinstance(a.get("value"), bool):
         return None
+    if not math.isfinite(a["value"]):
+        return 0.0                         # NaN / Infinity (Python's JSON parser accepts them): never counts as adult
     u = a.get("unit")
     if u not in (None, "years", "months"):
         return 0.0                         # unknown unit: never counts as adult
@@ -149,7 +156,7 @@ class COF:
         if names and names[0] == "mimetype" and self.zip.read("mimetype").decode("ascii", "ignore").strip() != MIMETYPE:
             raise COFError(f"{self.path.name}: wrong mimetype")
         try:
-            self.m = json.loads(self.zip.read("manifest.json").decode("utf-8"))
+            self.m = json.loads(self.zip.read("manifest.json").decode("utf-8"), parse_constant=_no_constant)
         except ValueError as ex:
             raise COFError(f"{self.path.name}: manifest.json is not valid JSON ({ex})") from ex
         if not isinstance(self.m, dict):
@@ -754,8 +761,36 @@ class COF:
                     fig = f"{fig}, {w['date']}" if fig else w["date"]
             out.append({"id": v, "kind": rv.get("kind"), "label": rv.get("label") or v, "node": n, "lang": lang,
                         "gist": g.get(lang, ""), "when": f"{lab} ({fig})" if lab and fig else (lab or fig or "undated"),
-                        "media": self.memory_media(v), "explicit": self.memory_explicit(v), **self.axes(n, lang)})
+                        "media": [a for a in self.memory_media(v) if include_personal or a not in self.personal_media()],
+                        "explicit": self.memory_explicit(v), **self.axes(n, lang)})
         return out
+
+    def personal_media(self) -> set:
+        """The files of `visibility: personal` memories and psyche nodes (a user's data): never given through a canon node that
+        borrows them (`media_from`) or is illustrated by them, unless personal content is asked (hunt H1-11)."""
+        if getattr(self, "_personal_media", None) is None:
+            out = set()
+            for cat, fld in (("memories", "memory"), ("psyche", "node")):
+                for vid in self.variants(cat):
+                    rv = self.variant(cat, vid) or {}
+                    n = self.json_at(rv.get(fld)) if isinstance(rv.get(fld), str) else None
+                    if isinstance(n, dict) and n.get("visibility") == "personal":
+                        out |= {str(a) for a in rv.get("media") or [] if isinstance(a, str)}
+            self._personal_media = out
+        return self._personal_media
+
+    def personal_nodes(self) -> set:
+        """`<category>/<id>` of the personal memories and psyche nodes — a stance about one of them does not name it."""
+        if getattr(self, "_personal_nodes", None) is None:
+            out = set()
+            for cat, fld in (("memories", "memory"), ("psyche", "node")):
+                for vid in self.variants(cat):
+                    rv = self.variant(cat, vid) or {}
+                    n = self.json_at(rv.get(fld)) if isinstance(rv.get(fld), str) else None
+                    if isinstance(n, dict) and n.get("visibility") == "personal":
+                        out.add(f"{cat}/{vid}")
+            self._personal_nodes = out
+        return self._personal_nodes
 
     # ---- languages of the gists (RFC 0002 § 3 reading rule, shared by memories and psyche) ---------------------------
 
@@ -807,7 +842,9 @@ class COF:
             words += [str(t) for t in (n.get("tags") or [])]
         return [x for x in words if isinstance(x, str) and x]
 
-    def psyche_subject(self, about, lang: str) -> str:
+    PRIVATE_WORD = {"en": "a private matter", "fr": "une affaire privée"}
+
+    def psyche_subject(self, about, lang: str, include_personal: bool = True) -> str:
         """What a stance bears on, as a short text in the wanted language: the user, a character's name, a node's
         label or the free label (RFC 0004 § 3 bis)."""
         if not isinstance(about, dict):
@@ -817,6 +854,8 @@ class COF:
         if about.get("identity"):
             return (self.identities().get(about["identity"]) or {}).get("name") or str(about["identity"])
         if about.get("node"):
+            if not include_personal and str(about["node"]) in self.personal_nodes():     # its label is the user's data too (hunt H4-02)
+                return self.PRIVATE_WORD.get((lang or "en").lower().split("-")[0], self.PRIVATE_WORD["en"])
             cat, _, vid = str(about["node"]).partition("/")
             return label_in((self.variant(cat, vid) or {}).get("label") or vid, lang)
         return text_in(about.get("label"), lang)
@@ -849,12 +888,12 @@ class COF:
                     words += list(self.USER_WORD.values()) + ["user"]
                 if about.get("identity"):
                     words += self._identity_words(str(about["identity"]))
-                if about.get("node"):
+                if about.get("node") and (include_personal or str(about["node"]) not in self.personal_nodes()):
                     words += self._target_words(str(about["node"]))
                 if isinstance(about.get("label"), dict):
                     words += [str(x) for x in about["label"].values()]
             for ln in n.get("links") or []:
-                if isinstance(ln, dict) and ln.get("type") in ("because", "about"):
+                if isinstance(ln, dict) and ln.get("type") in ("because", "about") and (include_personal or str(ln.get("to", "")) not in self.personal_nodes()):
                     words += self._target_words(str(ln.get("to", "")))
                     if isinstance(ln.get("label"), dict):
                         words += [str(x) for x in ln["label"].values()]
@@ -867,8 +906,8 @@ class COF:
                         "aware": n.get("aware") if n.get("aware") in ("yes", "partly", "no") else "yes",
                         "valence": n["valence"] if kind in ("stance", "taste") and isinstance(n.get("valence"), int) and not isinstance(n.get("valence"), bool) else None,
                         "until": n.get("until") if isinstance(n.get("until"), dict) else None,
-                        "subject": self.psyche_subject(about, lang) if kind == "stance" else "",
-                        "keywords": [w for w in words if w], "media": [str(a) for a in rv.get("media") or [] if isinstance(a, str)],
+                        "subject": self.psyche_subject(about, lang, include_personal) if kind == "stance" else "",
+                        "keywords": [w for w in words if w], "media": [str(a) for a in rv.get("media") or [] if isinstance(a, str) and (include_personal or a not in self.personal_media())],
                         "age": age_years(rv.get("age")), "age_raw": rv.get("age"), **self.axes(n, lang)})
         return out
 
