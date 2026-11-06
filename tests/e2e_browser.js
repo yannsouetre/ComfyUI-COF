@@ -40,7 +40,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     return { count: n.length, cof: n.filter(x => (x.comfyClass || '').startsWith('COF')).length, file: w('cof_file').value, files: w('cof_file').options.values,
       preset: w('preset').value, presets: w('preset').options.values, chars: w('character').options.values, missing: n.filter(x => !x.comfyClass && !x.type).length };
   });
-  check('cof_preview.json loads (30 nodes)', info.count === 30, `${info.count} nodes, ${info.cof} COF`);
+  check('cof_preview.json loads (35 nodes)', info.count === 35, `${info.count} nodes, ${info.cof} COF`);
   check('file list has clara-mercier.cof', info.files.includes('clara-mercier.cof'), info.files.length + ' files');
   check('preset list is Clara\'s 12 presets (+ default)', info.presets.length === 13 && info.presets[0] === '(default)', JSON.stringify(info.presets.slice(0, 4)));
   await page.screenshot({ path: path.join(OUT, 'browser-preview-workflow.png') });

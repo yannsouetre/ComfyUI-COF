@@ -327,5 +327,62 @@
   "_meta": {
    "title": "Memories: labels"
   }
+ },
+ "57": {
+  "class_type": "COFPsyche",
+  "inputs": {
+   "cof": [
+    "1",
+    0
+   ],
+   "format": "soul",
+   "language": "(preset)",
+   "focus": "",
+   "max_nodes": 0,
+   "include_secret": false,
+   "drop_dangerous": false,
+   "include_personal": false,
+   "show_illustrations": true,
+   "output_illustrations": true
+  },
+  "_meta": {
+   "title": "🧠 COF Psyche"
+  }
+ },
+ "58": {
+  "class_type": "PreviewAny",
+  "inputs": {
+   "source": [
+    "57",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Preview"
+  }
+ },
+ "59": {
+  "class_type": "PreviewAny",
+  "inputs": {
+   "source": [
+    "57",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Preview"
+  }
+ },
+ "60": {
+  "class_type": "PreviewImage",
+  "inputs": {
+   "images": [
+    "57",
+    3
+   ]
+  },
+  "_meta": {
+   "title": "Preview"
+  }
  }
 }
