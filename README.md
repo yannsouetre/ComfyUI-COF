@@ -108,7 +108,11 @@ The tests stub `torch` and `comfy`. They need seven sample files in `tests/sampl
 
 ## Changes
 
-### What's new in 0.7.0
+### What's new in 0.7.1
+
+- **COF Memories** says when personal memories were left out: the `labels` output reads « 2 personal memories left out — tick include_personal » instead of « this preset has no memory » (a file imported from Character.AI holds only personal memories).
+
+### 0.7.0
 
 - **COF Psyche** (COF 1.2): the character's inner life as text — `soul`, `lines`, `prose`, `positions` — with `focus`, `max_nodes`, secret / personal / dangerous handling.
 - **People, places and objects** (RFC 0005) in COF Memories and in the psyche's `focus`.
@@ -118,6 +122,8 @@ The tests stub `torch` and `comfy`. They need seven sample files in `tests/sampl
 - Every node has a help text; errors from a damaged `.cof` start with its file name.
 
 Details, in order:
+
+- **0.7.1** — COF Memories: when every memory of the preset is `visibility: personal` and `include_personal` is off, `labels` names how many were left out instead of claiming the preset has no memory; `count` stays 0, `text` stays empty. Nothing else changes.
 
 
 - **0.7.0** — **illustrations of psyche nodes** (COF 1.2, RFC 0004 § 3 decies; decision of 4 November): COF Psyche gains **show_illustrations** (the first image of each node's `media` previewed inside the node, `ui.images` with temp files) and **output_illustrations** (the same images as an IMAGE batch on a new last output, `illustrations`; a blank 64×64 image when there are none), both off and appended after the existing inputs and outputs. The reader exposes a psyche entry's `media` and `age`; the preset's safety age reads the ages the illustrations carry (a node showing the character at 15 makes the preset a minor preset); nudity-flagged images need the loader's allow intimate (same rule as memory images) and adults of known age; a real person without a consent record is never shown. Tests on `clara-illustrated.cof` (nudity, minor, real person, secret node, focus).

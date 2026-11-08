@@ -612,7 +612,10 @@ class COFMemories:
             c = COF(c.path)
             print("[ComfyUI-COF] COF Memories: the file was loaded by an older ComfyUI-COF — keep a single ComfyUI-COF folder in custom_nodes and restart")
         mems = c.memories(pid, include_personal)
-        labels = "\n".join(f"memory_{i + 1:03d}: {english(m['label'])} — {m['when']}" for i, m in enumerate(mems)) or "(this preset has no memory)"
+        labels = "\n".join(f"memory_{i + 1:03d}: {english(m['label'])} — {m['when']}" for i, m in enumerate(mems))
+        if not labels:                                                       # 0.7.1: say when personal memories were left out rather than "no memory"
+            hidden = 0 if include_personal else len(c.memories(pid, True))
+            labels = f"({hidden} personal memor{'y' if hidden == 1 else 'ies'} left out — tick include_personal)" if hidden else "(this preset has no memory)"
         chosen = _select(mems, "all" if _token(pick) == "all" else pick, "memory") if mems else []
         lines, aids = [], []
         for m in chosen:
