@@ -45,6 +45,8 @@ def test_cast_and_unknowns(pack):
 
 def test_refmod_and_lora(pack, tmp_path):
     nodes, applied = pack
+    if not (SAMPLES / "refmod.cof").is_file():
+        pytest.skip("needs tests/samples/refmod.cof (a local file with a pre-encoded reference, see README)")   # hunt 1.2.2, CLI-09
     out = nodes.COFLoadCharacter().load(str(SAMPLES / "refmod.cof"), "", "", 256)
     paths, bases = nodes.COFReferenceLatents().export(out[0], "refmods")
     assert paths.endswith(".safetensors") and "MiniMax H3" in bases and Path(paths).is_file()

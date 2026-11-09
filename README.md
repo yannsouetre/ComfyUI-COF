@@ -104,7 +104,7 @@ The tests stub `torch` and `comfy`. They need seven sample files in `tests/sampl
 - `clara-psyche.cof`, the same example at 1.2 (with its 23 psyche nodes, `aware` / `valence` / `until` included) packed (`cof pack spec/examples/10-clara-mercier -o tests/samples/clara-psyche.cof`);
 - `clara-illustrated.cof`, `viewer/samples/clara-mercier.cof` of the COF repository (1.2; two illustrated psyche nodes, `contra1` and `hab1`);
 - `mixed-adult-minor.cof`, which is the COF repository's `tests/fixtures/mixed-age` packed;
-- `refmod.cof`, a test file with a pre-encoded reference.
+- `refmod.cof`, a test file with a pre-encoded reference (a `reference-latent` identity weight with an `encoding` block); it is not tracked and its test is skipped when the file is absent.
 
 ## Changes
 
